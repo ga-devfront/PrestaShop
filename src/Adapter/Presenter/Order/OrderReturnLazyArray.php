@@ -83,7 +83,7 @@ class OrderReturnLazyArray extends AbstractLazyArray
     {
         return $this->link->getPageLink(
             'order-detail',
-            true,
+            null,
             null,
             'id_order=' . (int) $this->orderReturn['id_order']
         );
@@ -98,7 +98,7 @@ class OrderReturnLazyArray extends AbstractLazyArray
     {
         return $this->link->getPageLink(
             'order-return',
-            true,
+            null,
             null,
             'id_order_return=' . (int) $this->orderReturn['id_order_return']
         );
@@ -123,7 +123,7 @@ class OrderReturnLazyArray extends AbstractLazyArray
      */
     public function getReturnDate()
     {
-        return Tools::displayDate($this->orderReturn['date_add'], null, false);
+        return Tools::displayDate($this->orderReturn['date_add'], false);
     }
 
     /**
@@ -136,7 +136,7 @@ class OrderReturnLazyArray extends AbstractLazyArray
         return ($this->orderReturn['state'] == 2)
             ? $this->link->getPageLink(
                 'pdf-order-return',
-                true,
+                null,
                 null,
                 'id_order_return=' . (int) $this->orderReturn['id_order_return']
             )

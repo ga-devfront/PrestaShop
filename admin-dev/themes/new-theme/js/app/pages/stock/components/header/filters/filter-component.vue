@@ -58,9 +58,8 @@
       v-else
     >
       <li
-        v-for="(item, index) in getItems()"
+        v-for="(item, index) in visibleItems"
         :key="index"
-        v-show="item.visible"
         class="item"
       >
         <PSTreeItem
@@ -74,13 +73,15 @@
   </div>
 </template>
 
-<script>
-  import PSTags from '@app/widgets/ps-tags';
-  import PSTreeItem from '@app/widgets/ps-tree/ps-tree-item';
-  import PSTree from '@app/widgets/ps-tree/ps-tree';
-  import {EventBus} from '@app/utils/event-bus';
+<script lang="ts">
+  import {defineComponent} from 'vue';
+  import PSTags from '@app/widgets/ps-tags.vue';
+  import PSTreeItem from '@app/widgets/ps-tree/ps-tree-item.vue';
+  import PSTree from '@app/widgets/ps-tree/ps-tree.vue';
+  import {EventEmitter} from '@components/event-emitter';
+  import translate from '@app/pages/stock/mixins/translate';
 
-  export default {
+  const FilterComponent = defineComponent({
     props: {
       placeholder: {
         type: String,
@@ -94,30 +95,47 @@
       label: {
         type: String,
         required: true,
+        default: '',
       },
       list: {
         type: Array,
         required: true,
       },
     },
+    mixins: [translate],
     computed: {
-      isOverview() {
+      isOverview(): boolean {
         return this.$route.name === 'overview';
       },
-      hasPlaceholder() {
+      hasPlaceholder(): boolean {
         return !this.tags.length;
       },
-      PSTreeTranslations() {
+      PSTreeTranslations(): {expand: string, reduce: string} {
         return {
           expand: this.trans('tree_expand'),
           reduce: this.trans('tree_reduce'),
         };
       },
+      visibleItems(): Array<any> {
+        const items = this.getItems();
+
+        return items.filter((item) => item.visible);
+      },
     },
     methods: {
-      getItems() {
-        const matchList = [];
-        this.list.filter((data) => {
+      reset(): void {
+        this.tags = [];
+      },
+      getItems(): Array<any> {
+        /* eslint-disable camelcase */
+        const matchList: Array<{
+          id: number,
+          name: string,
+          supplier_id: number,
+          visible: boolean,
+        }> = [];
+        /* eslint-enable camelcase */
+        this.list.filter((data: any) => {
           const label = data[this.label].toLowerCase();
           data.visible = false;
           if (label.match(this.currentVal)) {
@@ -137,7 +155,7 @@
         }
         return this.list;
       },
-      onCheck(obj) {
+      onCheck(obj: any): void {
         const itemLabel = obj.item[this.label];
         const filterType = this.hasChildren ? 'category' : 'supplier';
 
@@ -145,11 +163,7 @@
           this.tags.push(itemLabel);
         } else {
           const index = this.tags.indexOf(itemLabel);
-
-          if (this.splice) {
-            this.tags.splice(index, 1);
-          }
-          this.splice = true;
+          this.tags.splice(index, 1);
         }
         if (this.tags.length) {
           this.$emit('active', this.filterList(this.tags), filterType);
@@ -157,28 +171,28 @@
           this.$emit('active', [], filterType);
         }
       },
-      onTyping(val) {
+      onTyping(val: string): void {
         this.currentVal = val.toLowerCase();
       },
-      onTagChanged(tag) {
+      onTagChanged(tag: any): void {
         let checkedTag = tag;
 
         if (this.tags.indexOf(this.currentVal) !== -1) {
           this.tags.pop();
         }
-        this.splice = false;
+
         if (this.match) {
           checkedTag = this.match[this.label];
         }
-        EventBus.$emit('toggleCheckbox', checkedTag);
+        EventEmitter.emit('toggleCheckbox', checkedTag);
         this.currentVal = '';
       },
-      filterList(tags) {
-        const idList = [];
+      filterList(tags: Array<any>): Array<number> {
+        const idList: Array<number> = [];
         const {categoryList} = this.$store.state;
         const list = this.hasChildren ? categoryList : this.list;
 
-        list.map((data) => {
+        list.map((data: Record<string, any>) => {
           const isInIdList = idList.indexOf(Number(data[this.itemId])) === -1;
 
           if (tags.indexOf(data[this.label]) !== -1 && isInIdList) {
@@ -192,9 +206,8 @@
     data() {
       return {
         currentVal: '',
-        match: null,
-        tags: [],
-        splice: true,
+        match: null as null | Record<string, any>,
+        tags: [] as Array<any>,
         hasChildren: false,
       };
     },
@@ -203,5 +216,9 @@
       PSTree,
       PSTreeItem,
     },
-  };
+  });
+
+  export type FilterComponentInstanceType = InstanceType<typeof FilterComponent> | undefined;
+
+  export default FilterComponent;
 </script>

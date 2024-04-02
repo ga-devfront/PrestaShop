@@ -36,7 +36,7 @@ class Validate
     /**
      * @param mixed $way
      *
-     * @return int
+     * @return bool
      */
     public static function isOrderWay($way)
     {
@@ -146,5 +146,17 @@ class Validate
     public function isLinkRewrite($value)
     {
         return ValidateLegacy::isLinkRewrite($value);
+    }
+
+    /**
+     * Check the given string is a valid object class name
+     *
+     * @param string $objectClassName object class name
+     *
+     * @return bool
+     */
+    public static function isValidObjectClassName(string $objectClassName): bool
+    {
+        return ValidateLegacy::isValidObjectClassName($objectClassName);
     }
 }

@@ -27,20 +27,35 @@
 namespace PrestaShop\PrestaShop\Core\Addon\Theme;
 
 use AbstractAssetManager;
-use Configuration;
+use PrestaShop\PrestaShop\Adapter\Configuration;
 use PrestaShop\PrestaShop\Core\Addon\AddonInterface;
+use PrestaShop\PrestaShop\Core\Util\ArrayFinder;
 use PrestaShop\PrestaShop\Core\Util\File\YamlParser;
-use Shudrum\Component\ArrayFinder\ArrayFinder;
 
 class Theme implements AddonInterface
 {
+    /**
+     * @var ArrayFinder
+     */
     private $attributes;
 
-    public function __construct(array $attributes)
-    {
+    /**
+     * @param array $attributes Theme attributes
+     * @param string|null $configurationCacheDirectory Default _PS_CACHE_DIR_
+     * @param string $themesDirectory Default _PS_ALL_THEMES_DIR_
+     */
+    public function __construct(
+        array $attributes,
+        ?string $configurationCacheDirectory = null,
+        string $themesDirectory = _PS_ALL_THEMES_DIR_
+    ) {
         if (isset($attributes['parent'])) {
-            $yamlParser = new YamlParser((new Configuration())->get('_PS_CACHE_DIR_'));
-            $parentAttributes = $yamlParser->parse(_PS_ALL_THEMES_DIR_ . '/' . $attributes['parent'] . '/config/theme.yml');
+            if (null === $configurationCacheDirectory) {
+                $configurationCacheDirectory = (new Configuration())->get('_PS_CACHE_DIR_');
+            }
+
+            $yamlParser = new YamlParser($configurationCacheDirectory);
+            $parentAttributes = $yamlParser->parse($themesDirectory . '/' . $attributes['parent'] . '/config/theme.yml');
             $parentAttributes['preview'] = 'themes/' . $attributes['parent'] . '/preview.png';
             $parentAttributes['parent_directory'] = rtrim($attributes['directory'], '/') . '/';
             $attributes = array_merge($parentAttributes, $attributes);
@@ -48,7 +63,7 @@ class Theme implements AddonInterface
 
         $attributes['directory'] = rtrim($attributes['directory'], '/') . '/';
 
-        if (file_exists(_PS_ALL_THEMES_DIR_ . $attributes['name'] . '/preview.png')) {
+        if (file_exists($themesDirectory . $attributes['name'] . '/preview.png')) {
             $attributes['preview'] = 'themes/' . $attributes['name'] . '/preview.png';
         }
 
@@ -184,6 +199,13 @@ class Theme implements AddonInterface
         return $this->attributes->get('meta.available_layouts');
     }
 
+    /**
+     * Returns layout name for page from theme configuration
+     *
+     * @param string $page page identifier
+     *
+     * @return string layout name
+     */
     public function getLayoutNameForPage($page)
     {
         $layout_name = $this->get('theme_settings.default_layout');
@@ -195,9 +217,28 @@ class Theme implements AddonInterface
         return $layout_name;
     }
 
+    /**
+     * Returns layout relative path for provided page identifier
+     *
+     * @param string $page page identifier
+     *
+     * @return string layout relative path
+     */
     public function getLayoutRelativePathForPage($page)
     {
-        return 'layouts/' . $this->getLayoutNameForPage($page) . '.tpl';
+        return $this->getLayoutPath($this->getLayoutNameForPage($page));
+    }
+
+    /**
+     * Returns relative path for provided layout name
+     *
+     * @param string $layoutName layout name
+     *
+     * @return string layout relative path
+     */
+    public function getLayoutPath($layoutName)
+    {
+        return 'layouts/' . $layoutName . '.tpl';
     }
 
     private function getPageSpecificCss($pageId)
@@ -255,5 +296,15 @@ class Theme implements AddonInterface
         }
 
         return $js;
+    }
+
+    /**
+     * Defines if the theme requires core.js scripts or it provides it's own implementation.
+     *
+     * @return bool
+     */
+    public function requiresCoreScripts(): bool
+    {
+        return $this->attributes->get('theme_settings.core_scripts', true);
     }
 }

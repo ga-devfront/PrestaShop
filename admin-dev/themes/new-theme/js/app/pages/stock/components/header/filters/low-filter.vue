@@ -30,14 +30,9 @@
         <PSCheckbox
           ref="low-filter"
           id="low-filter"
-          class="mt-1"
           @checked="onCheck"
-        >
-          <span
-            slot="label"
-            class="ml-2"
-          >{{ trans('filter_low_stock') }}</span>
-        </PSCheckbox>
+        />
+        <span class="ml-2">{{ trans('filter_low_stock') }}</span>
       </div>
       <div class="content-topbar-right col mr-3 d-flex align-items-center justify-content-end">
         <a :href="stockExportUrl">
@@ -69,10 +64,12 @@
   </div>
 </template>
 
-<script>
-  import PSCheckbox from '@app/widgets/ps-checkbox';
+<script lang="ts">
+  import PSCheckbox from '@app/widgets/ps-checkbox.vue';
+  import {defineComponent} from 'vue';
+  import translate from '@app/pages/stock/mixins/translate';
 
-  export default {
+  export default defineComponent({
     props: {
       filters: {
         type: Object,
@@ -80,24 +77,26 @@
         default: () => ({}),
       },
     },
+    mixins: [translate],
     computed: {
-      stockImportTitle() {
+      stockImportTitle(): string {
         return this.trans('title_import');
       },
-      stockExportTitle() {
+      stockExportTitle(): string {
         return this.trans('title_export');
       },
-      stockImportUrl() {
+      stockImportUrl(): string {
         return window.data.stockImportUrl;
       },
-      stockExportUrl() {
-        const params = $.param(this.filters);
+      stockExportUrl(): string {
+        const filtersClone = {...this.filters};
+        const params = $.param(filtersClone);
 
         return `${window.data.stockExportUrl}&${params}`;
       },
     },
     methods: {
-      onCheck(checkbox) {
+      onCheck(checkbox: HTMLInputElement): void {
         const isChecked = checkbox.checked ? 1 : 0;
         this.$emit('lowStockChecked', isChecked);
       },
@@ -108,5 +107,5 @@
     components: {
       PSCheckbox,
     },
-  };
+  });
 </script>

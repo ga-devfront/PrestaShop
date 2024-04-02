@@ -39,8 +39,9 @@ use PrestaShop\PrestaShop\Core\Grid\Column\ColumnCollection;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ActionColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\BadgeColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\BulkActionColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\DataColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\DateTimeColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ToggleColumn;
-use PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn;
 use PrestaShop\PrestaShop\Core\Grid\Filter\Filter;
 use PrestaShop\PrestaShop\Core\Grid\Filter\FilterCollection;
 use PrestaShop\PrestaShop\Core\Hook\HookDispatcherInterface;
@@ -69,26 +70,50 @@ final class CustomerGridDefinitionFactory extends AbstractGridDefinitionFactory
     private $isMultistoreFeatureEnabled;
 
     /**
+     * @var bool
+     */
+    private $isGroupsFeatureEnabled;
+
+    /**
      * @var array
      */
     private $genderChoices;
+
+    /**
+     * @var array
+     */
+    private $groupChoices;
+
+    /**
+     * @var string
+     */
+    private $contextDateFormat;
 
     /**
      * @param HookDispatcherInterface $hookDispatcher
      * @param bool $isB2bFeatureEnabled
      * @param bool $isMultistoreFeatureEnabled
      * @param array $genderChoices
+     * @param string $contextDateFormat
+     * @param bool $isGroupsFeatureEnabled
+     * @param array $groupChoices
      */
     public function __construct(
         HookDispatcherInterface $hookDispatcher,
         $isB2bFeatureEnabled,
         $isMultistoreFeatureEnabled,
-        array $genderChoices
+        array $genderChoices,
+        string $contextDateFormat,
+        bool $isGroupsFeatureEnabled = true,
+        array $groupChoices = []
     ) {
         parent::__construct($hookDispatcher);
         $this->isB2bFeatureEnabled = $isB2bFeatureEnabled;
         $this->isMultistoreFeatureEnabled = $isMultistoreFeatureEnabled;
         $this->genderChoices = $genderChoices;
+        $this->contextDateFormat = $contextDateFormat;
+        $this->isGroupsFeatureEnabled = $isGroupsFeatureEnabled;
+        $this->groupChoices = $groupChoices;
     }
 
     /**
@@ -193,17 +218,20 @@ final class CustomerGridDefinitionFactory extends AbstractGridDefinitionFactory
                     ])
             )
             ->add(
-                (new DataColumn('date_add'))
+                (new DateTimeColumn('date_add'))
                     ->setName($this->trans('Registration', [], 'Admin.Orderscustomers.Feature'))
                     ->setOptions([
+                        'format' => $this->contextDateFormat,
                         'field' => 'date_add',
                     ])
             )
             ->add(
-                (new DataColumn('connect'))
+                (new DateTimeColumn('connect'))
                     ->setName($this->trans('Last visit', [], 'Admin.Orderscustomers.Feature'))
                     ->setOptions([
+                        'format' => $this->contextDateFormat,
                         'field' => 'connect',
+                        'empty_data' => '--',
                     ])
             )
             ->add((new ActionColumn('actions'))
@@ -257,10 +285,21 @@ final class CustomerGridDefinitionFactory extends AbstractGridDefinitionFactory
             $columns->addBefore(
                 'actions',
                 (new DataColumn('shop_name'))
-                    ->setName($this->trans('Shop', [], 'Admin.Global'))
+                    ->setName($this->trans('Store', [], 'Admin.Global'))
                     ->setOptions([
                         'field' => 'shop_name',
                         'sortable' => false,
+                    ])
+            );
+        }
+
+        if ($this->isGroupsFeatureEnabled) {
+            $columns->addAfter(
+                'email',
+                (new DataColumn('default_group'))
+                    ->setName($this->trans('Group', [], 'Admin.Global'))
+                    ->setOptions([
+                        'field' => 'default_group',
                     ])
             );
         }
@@ -367,6 +406,20 @@ final class CustomerGridDefinitionFactory extends AbstractGridDefinitionFactory
                     ])
                     ->setAssociatedColumn('company')
             );
+        }
+
+        if ($this->isGroupsFeatureEnabled) {
+            $filters->add(
+                (new Filter('default_group', ChoiceType::class))
+                    ->setTypeOptions([
+                        'choices' => $this->groupChoices,
+                        'expanded' => false,
+                        'multiple' => false,
+                        'required' => false,
+                        'choice_translation_domain' => false,
+                    ])
+                    ->setAssociatedColumn('default_group')
+                );
         }
 
         return $filters;

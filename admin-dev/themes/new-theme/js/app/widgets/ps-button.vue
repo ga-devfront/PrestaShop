@@ -27,20 +27,26 @@
     type="button"
     class="btn"
     :class="classObject"
-    @click="onClick"
   >
     <slot />
   </button>
 </template>
 
-<script>
-  export default {
+<script lang="ts">
+  import {defineComponent} from 'vue';
+
+  export default defineComponent({
     props: {
       primary: {type: Boolean},
       ghost: {type: Boolean},
     },
     computed: {
-      classObject() {
+      classObject(): {
+        'btn-outline-primary'?: boolean,
+        'btn-outline-secondary'?: boolean,
+        'btn-primary'?: boolean,
+        'btn-secondary'?: boolean
+      } {
         if (this.ghost) {
           return {
             'btn-outline-primary': this.primary,
@@ -54,10 +60,5 @@
         };
       },
     },
-    methods: {
-      onClick() {
-        this.$emit('click');
-      },
-    },
-  };
+  });
 </script>

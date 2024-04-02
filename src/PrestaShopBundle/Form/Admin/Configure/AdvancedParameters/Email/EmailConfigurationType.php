@@ -32,7 +32,7 @@ use PrestaShopBundle\Form\Admin\Type\SwitchType;
 use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Class EmailConfigurationType defines email sending configuration.
@@ -88,6 +88,9 @@ class EmailConfigurationType extends TranslatorAwareType
                 'multiple' => false,
                 'choices' => $this->mailMethodChoiceProvider->getChoices(),
             ])
+            ->add('subject_prefix', SwitchType::class, [
+                'label' => $this->trans('Enable the store name as a prefix in the email\'s subject', 'Admin.Advparameters.Feature'),
+            ])
             ->add('mail_type', ChoiceType::class, [
                 'expanded' => true,
                 'multiple' => false,
@@ -100,6 +103,16 @@ class EmailConfigurationType extends TranslatorAwareType
             ->add('log_emails', SwitchType::class, [
                 'label' => $this->trans('Log Emails', 'Admin.Advparameters.Feature'),
             ])
-            ->add('smtp_config', SmtpConfigurationType::class);
+            ->add('dkim_enable', SwitchType::class, [
+                'attr' => ['class' => 'js-dkim-enable'],
+                'choices' => [
+                    'Disabled' => false,
+                    'Enabled' => true,
+                ],
+                'label' => $this->trans('DKIM signing', 'Admin.Advparameters.Feature'),
+                'help' => $this->trans('Enable DKIM, fill in the fields and give it a try. If no email is sent, check logs.', 'Admin.Advparameters.Help'),
+            ])
+            ->add('smtp_config', SmtpConfigurationType::class)
+            ->add('dkim_config', DkimConfigurationType::class);
     }
 }

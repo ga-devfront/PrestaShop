@@ -27,7 +27,7 @@
     <input
       ref="datepicker"
       type="text"
-      class="form-control"
+      :class="['form-control', `datepicker-${type}`]"
     >
     <div class="input-group-append">
       <span class="input-group-text">
@@ -37,8 +37,10 @@
   </div>
 </template>
 
-<script>
-  export default {
+<script lang="ts">
+  import {defineComponent} from 'vue';
+
+  export default defineComponent({
     props: {
       locale: {
         type: String,
@@ -51,10 +53,11 @@
       },
     },
     mounted() {
-      $(this.$refs.datepicker).datetimepicker({
+      $(<HTMLInputElement> this.$refs.datepicker).datetimepicker({
         format: 'YYYY-MM-DD',
         showClear: true,
-      }).on('dp.change', (infos) => {
+        useCurrent: false,
+      }).on('dp.change', (infos: Record<string, any>) => {
         infos.dateType = this.type;
         this.$emit(
           infos.date ? 'dpChange' : 'reset',
@@ -62,7 +65,7 @@
         );
       });
     },
-  };
+  });
 </script>
 
 <style lang="scss">

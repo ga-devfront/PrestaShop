@@ -31,12 +31,12 @@ class CartRuleCore extends ObjectModel
 {
     /* Filters used when retrieving the cart rules applied to a cart of when calculating the value of a reduction */
 
-    const FILTER_ACTION_ALL = 1;
-    const FILTER_ACTION_SHIPPING = 2;
-    const FILTER_ACTION_REDUCTION = 3;
-    const FILTER_ACTION_GIFT = 4;
-    const FILTER_ACTION_ALL_NOCAP = 5;
-    const BO_ORDER_CODE_PREFIX = 'BO_ORDER_';
+    public const FILTER_ACTION_ALL = 1;
+    public const FILTER_ACTION_SHIPPING = 2;
+    public const FILTER_ACTION_REDUCTION = 3;
+    public const FILTER_ACTION_GIFT = 4;
+    public const FILTER_ACTION_ALL_NOCAP = 5;
+    public const BO_ORDER_CODE_PREFIX = 'BO_ORDER_';
 
     /**
      * This variable controls that a free gift is offered only once, even when multi-shippping is activated
@@ -49,54 +49,40 @@ class CartRuleCore extends ObjectModel
     public $id;
     public $name;
     public $id_customer;
+    /**
+     * @var string|null
+     */
     public $date_from;
+    /**
+     * @var string|null
+     */
     public $date_to;
     public $description;
     public $quantity = 1;
     public $quantity_per_user = 1;
     public $priority = 1;
-    /**
-     * @var bool
-     */
-    public $partial_use = 1;
+    /** @var bool */
+    public $partial_use = true;
     public $code;
     public $minimum_amount;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $minimum_amount_tax;
     public $minimum_amount_currency;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $minimum_amount_shipping;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $country_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $carrier_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $group_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $cart_rule_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $product_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $shop_restriction;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $free_shipping;
     public $reduction_percent;
     public $reduction_amount;
@@ -104,25 +90,17 @@ class CartRuleCore extends ObjectModel
      * @var bool is this voucher value tax included (false = tax excluded value)
      */
     public $reduction_tax;
-    /**
-     * @var int
-     */
+    /** @var int */
     public $reduction_currency;
     public $reduction_product;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $reduction_exclude_special;
     public $gift_product;
     public $gift_product_attribute;
-    /**
-     * @var bool
-     */
+    /** @var bool */
     public $highlight;
-    /**
-     * @var bool
-     */
-    public $active = 1;
+    /** @var bool */
+    public $active = true;
     public $date_add;
     public $date_upd;
 
@@ -197,7 +175,7 @@ class CartRuleCore extends ObjectModel
     public function add($autodate = true, $null_values = false)
     {
         if (!$this->reduction_currency) {
-            $this->reduction_currency = (int) Configuration::get('PS_CURRENCY_DEFAULT');
+            $this->reduction_currency = Currency::getDefaultCurrencyId();
         }
 
         if (!parent::add($autodate, $null_values)) {
@@ -224,7 +202,7 @@ class CartRuleCore extends ObjectModel
         Cache::clean('getContextualValue_' . $this->id . '_*');
 
         if (!$this->reduction_currency) {
-            $this->reduction_currency = (int) Configuration::get('PS_CURRENCY_DEFAULT');
+            $this->reduction_currency = Currency::getDefaultCurrencyId();
         }
 
         if (!parent::update($null_values)) {
@@ -365,22 +343,18 @@ class CartRuleCore extends ObjectModel
         static $haveCartRuleToday = [];
 
         if (!isset($haveCartRuleToday[$idCustomer])) {
-            $sql = '(SELECT 1 FROM `' . _DB_PREFIX_ . 'cart_rule` ' .
-                'WHERE date_to >= "' . date('Y-m-d 00:00:00') .
-                '" AND date_to <= "' . date('Y-m-d 23:59:59') .
-                '" AND `id_customer` IN (0,' . (int) $idCustomer . ') LIMIT 1)';
+            $start_date = date('Y-m-d 00:00:00');
+            $end_date = date('Y-m-d 23:59:59');
+            $sql = 'SELECT 1 FROM `' . _DB_PREFIX_ . 'cart_rule` ' .
+                'WHERE ((date_to >= "' . $start_date .
+                '" AND date_to <= "' . $end_date .
+                '") OR (date_from >= "' . $start_date .
+                '" AND date_from <= "' . $end_date .
+                '") OR (date_from < "' . $start_date .
+                '" AND date_to > "' . $end_date .
+                '")) AND `id_customer` IN (0,' . (int) $idCustomer . ')';
 
-            $sql .= 'UNION ALL (SELECT 1 FROM `' . _DB_PREFIX_ . 'cart_rule` ' .
-                'WHERE date_from >= "' . date('Y-m-d 00:00:00') .
-                '" AND date_from <= "' . date('Y-m-d 23:59:59') .
-                '" AND `id_customer` IN (0,' . (int) $idCustomer . ') LIMIT 1)';
-
-            $sql .= 'UNION ALL (SELECT 1 FROM `' . _DB_PREFIX_ . 'cart_rule` ' .
-                'WHERE date_from < "' . date('Y-m-d 00:00:00') .
-                '" AND date_to > "' . date('Y-m-d 23:59:59') .
-                '" AND `id_customer` IN (0,' . (int) $idCustomer . ') LIMIT 1) LIMIT 1';
-
-            $haveCartRuleToday[$idCustomer] = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql);
+            $haveCartRuleToday[$idCustomer] = Db::getInstance(_PS_USE_SQL_SLAVE_)->getValue($sql);
         }
 
         return !empty($haveCartRuleToday[$idCustomer]);
@@ -392,9 +366,9 @@ class CartRuleCore extends ObjectModel
      * @param int $id_lang Language ID
      * @param int $id_customer Customer ID
      * @param bool $active Active vouchers only
-     * @param bool $includeGeneric Include generic AND highlighted vouchers, regardless of highlight_only setting
-     * @param bool $inStock Vouchers in stock only
-     * @param Cart|null $cart Cart
+     * @param bool $includeGeneric Include generic vouchers that don't have specific customer
+     * @param bool $inStock Vouchers that have "total quantity" remaining
+     * @param CartCore|null $cart Cart
      * @param bool $free_shipping_only Free shipping only
      * @param bool $highlight_only Highlighted vouchers only
      *
@@ -408,37 +382,42 @@ class CartRuleCore extends ObjectModel
         $active = false,
         $includeGeneric = true,
         $inStock = false,
-        Cart $cart = null,
+        CartCore $cart = null,
         $free_shipping_only = false,
         $highlight_only = false
     ) {
-        if (!CartRule::isFeatureActive()
-            || !CartRule::haveCartRuleToday($id_customer)
-        ) {
+        if (!CartRule::isFeatureActive() || !CartRule::haveCartRuleToday($id_customer)) {
             return [];
         }
 
-        $sql_part1 = '* FROM `' . _DB_PREFIX_ . 'cart_rule` cr
-				LEFT JOIN `' . _DB_PREFIX_ . 'cart_rule_lang` crl ON (cr.`id_cart_rule` = crl.`id_cart_rule` AND crl.`id_lang` = ' . (int) $id_lang . ')';
+        // Basic part of the query, we are selecting all cart rules
+        $sql = '
+            SELECT SQL_NO_CACHE * FROM `' . _DB_PREFIX_ . 'cart_rule` cr
+            LEFT JOIN `' . _DB_PREFIX_ . 'cart_rule_lang` crl 
+            ON (cr.`id_cart_rule` = crl.`id_cart_rule` AND crl.`id_lang` = ' . (int) $id_lang . ')';
 
-        $sql_part2 = ' AND NOW() BETWEEN cr.date_from AND cr.date_to
-				' . ($active ? 'AND cr.`active` = 1' : '') . '
-				' . ($inStock ? 'AND cr.`quantity` > 0' : '');
+        // We will definitely include vouchers for this specific customer
+        $sql .= ' WHERE (cr.`id_customer` = ' . (int) $id_customer;
 
+        // And if required, all the generic ones, that don't have any specific customer set
+        if ($includeGeneric && (int) $id_customer !== 0) {
+            $sql .= ' OR cr.`id_customer` = 0';
+        }
+        $sql .= ')';
+
+        // Then, conditions for date, voucher active property and total amount of vouchers in stock
+        $sql .= ' AND NOW() BETWEEN cr.date_from AND cr.date_to
+            ' . ($active ? 'AND cr.`active` = 1' : '') . '
+            ' . ($inStock ? 'AND cr.`quantity` > 0' : '');
+
+        // If we want to select only vouchers that have free shipping as the action
         if ($free_shipping_only) {
-            $sql_part2 .= ' AND free_shipping = 1 AND carrier_restriction = 1';
+            $sql .= ' AND free_shipping = 1 AND carrier_restriction = 1';
         }
 
+        // If we want to select only vouchers with "Highlight" option activated
         if ($highlight_only) {
-            $sql_part2 .= ' AND highlight = 1 AND code NOT LIKE "' . pSQL(CartRule::BO_ORDER_CODE_PREFIX) . '%"';
-        }
-
-        $sql = '(SELECT SQL_NO_CACHE ' . $sql_part1 . '
-            WHERE (cr.`id_customer` = ' . (int) $id_customer . '
-            OR (cr.`id_customer` = 0 AND (cr.`highlight` = 1 OR cr.`code` = "")))
-            ' . $sql_part2 . ')';
-        if ($includeGeneric && (int) $id_customer != 0) {
-            $sql .= ' UNION (SELECT ' . $sql_part1 . ' WHERE cr.`id_customer` = 0 ' . $sql_part2 . ')';
+            $sql .= ' AND highlight = 1 AND code NOT LIKE "' . pSQL(CartRule::BO_ORDER_CODE_PREFIX) . '%"';
         }
 
         $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql, true, false);
@@ -539,10 +518,45 @@ class CartRuleCore extends ObjectModel
         return $result;
     }
 
+    /**
+     * Get all (inactive too) CartRules for a given customer
+     *
+     * @param int $customerId
+     *
+     * @return array
+     */
+    public static function getAllCustomerCartRules(
+        int $customerId
+    ): array {
+        $query = new DbQuery();
+        $query->select('cr.*, crl.name');
+        $query->from('cart_rule', 'cr');
+        $query->where('cr.id_customer = ' . $customerId);
+        $query->leftJoin('cart_rule_lang', 'crl', 'cr.id_cart_rule = crl.id_cart_rule AND crl.id_lang = ' . (int) Configuration::get('PS_LANG_DEFAULT'));
+        $query->orderBy('cr.active DESC, cr.id_customer DESC');
+
+        $result = Db::getInstance()->executeS($query);
+
+        if (!$result) {
+            return [];
+        }
+
+        foreach ($result as &$cart_rule) {
+            if ($cart_rule['quantity_per_user']) {
+                $quantity_used = Order::getDiscountsCustomer($customerId, (int) $cart_rule['id_cart_rule']);
+                $cart_rule['quantity_for_user'] = $cart_rule['quantity_per_user'] - $quantity_used;
+            } else {
+                $cart_rule['quantity_for_user'] = 0;
+            }
+        }
+
+        return $result;
+    }
+
     public static function getCustomerHighlightedDiscounts(
         $languageId,
         $customerId,
-        Cart $cart
+        CartCore $cart
     ) {
         return static::getCustomerCartRules(
            $languageId,
@@ -602,6 +616,12 @@ class CartRuleCore extends ObjectModel
      */
     public static function deleteByIdCustomer($id_customer)
     {
+        // Remove cart rules only if we got some sensible ID of a customer.
+        // If we would pass zero further below, it would delete all non-customer-restricted cart rules.
+        if (empty($id_customer)) {
+            return false;
+        }
+
         $return = true;
         $cart_rules = new PrestaShopCollection('CartRule');
         $cart_rules->where('id_customer', '=', $id_customer);
@@ -634,7 +654,7 @@ class CartRuleCore extends ObjectModel
     }
 
     /**
-     * @param $id_product_rule_group
+     * @param int $id_product_rule_group
      *
      * @return array ('type' => ? , 'values' => ?)
      */
@@ -860,7 +880,7 @@ class CartRuleCore extends ObjectModel
             }
 
             if ($cartTotal < $minimum_amount) {
-                return (!$display_error) ? false : $this->trans('You have not reached the minimum amount required to use this voucher', [], 'Shop.Notifications.Error');
+                return (!$display_error) ? false : $this->trans('The minimum amount to benefit from this promo code is %s.', [Tools::getContextLocale($context)->formatPrice($minimum_amount, $context->currency->iso_code)], 'Shop.Notifications.Error');
             }
         }
 
@@ -930,27 +950,7 @@ class CartRuleCore extends ObjectModel
     /**
      * Checks if the products chosen by the customer are usable with the cart rule.
      *
-     * @deprecated since 1.7.4.0
-     * @see self::checkProductRestrictionsFromCart
-     *
-     * @param \Context $context
-     * @param bool $returnProducts
-     * @param bool $displayError
-     * @param bool $alreadyInCart
-     *
-     * @return array|bool|string
-     *
-     * @throws PrestaShopDatabaseException
-     */
-    public function checkProductRestrictions(Context $context, $returnProducts = false, $displayError = true, $alreadyInCart = false)
-    {
-        return $this->checkProductRestrictionsFromCart($context->cart, $returnProducts, $displayError, $alreadyInCart);
-    }
-
-    /**
-     * Checks if the products chosen by the customer are usable with the cart rule.
-     *
-     * @param \Cart $cart
+     * @param CartCore $cart
      * @param bool $returnProducts [default=false]
      *                             If true, this method will return an array of eligible products.
      *                             Otherwise, it returns TRUE on success and string|false on errors (depending on the value of $displayError)
@@ -963,27 +963,43 @@ class CartRuleCore extends ObjectModel
      *
      * @throws PrestaShopDatabaseException
      */
-    public function checkProductRestrictionsFromCart(Cart $cart, $returnProducts = false, $displayError = true, $alreadyInCart = false)
+    public function checkProductRestrictionsFromCart(CartCore $cart, $returnProducts = false, $displayError = true, $alreadyInCart = false)
     {
+        // Prepare a list of products to return, if the caller wishes so and provided returnProducts = true
         $selected_products = [];
 
-        // Check if the products chosen by the customer are usable with the cart rule
+        // Do all of this only if the cart rule actually has some restrictions
         if ($this->product_restriction) {
+            // Load products in cart and return if it's empty, there is no point in checking anything else
+            $products = $cart->getProducts();
+            if (empty($products)) {
+                return (!$displayError) ? false : $this->trans('You cannot use this voucher in an empty cart', [], 'Shop.Notifications.Error');
+            }
+
+            // Now we load all RULE GROUP.
             $product_rule_groups = $this->getProductRuleGroups();
             foreach ($product_rule_groups as $id_product_rule_group => $product_rule_group) {
+                /*
+                 * Rule group is a set of rules that the cart must meet for this cart rule to be applied.
+                 * These groups have an AND relationship. If you create two groups for given cart rule,
+                 * the cart must meet the conditions of both of them to be applied.
+                 *
+                 * Also, at least $product_rule_group['quantity'] must meet these rules.
+                 */
                 $eligible_products_list = [];
-                if (isset($cart) && is_object($cart) && is_array($products = $cart->getProducts())) {
-                    foreach ($products as $product) {
-                        $eligible_products_list[] = (int) $product['id_product'] . '-' . (int) $product['id_product_attribute'];
-                    }
+                foreach ($products as $product) {
+                    $eligible_products_list[] = (int) $product['id_product'] . '-' . (int) $product['id_product_attribute'];
                 }
-                if (!count($eligible_products_list)) {
-                    return (!$displayError) ? false : $this->trans('You cannot use this voucher in an empty cart', [], 'Shop.Notifications.Error');
-                }
+
+                // Now, we load the RULES inside the RULE GROUP
                 $product_rules = $this->getProductRules($id_product_rule_group);
                 $countRulesProduct = count($product_rules);
                 $condition = 0;
                 foreach ($product_rules as $product_rule) {
+                    /*
+                     * For the cart RULE GROUP to be validated, at least on of the RULES inside the RULE GROUP
+                     * must meet the conditions.
+                     */
                     switch ($product_rule['type']) {
                         case 'attributes':
                             $cart_attributes = Db::getInstance()->executeS('
@@ -1250,7 +1266,7 @@ class CartRuleCore extends ObjectModel
                 $basePriceContainsDiscount = isset($basePriceForPercentReduction) && $order_total === $basePriceForPercentReduction;
                 foreach ($context->cart->getCartRules(CartRule::FILTER_ACTION_GIFT, false) as $cart_rule) {
                     $freeProductsPrice = Tools::ps_round($cart_rule['obj']->getContextualValue($use_tax, $context, CartRule::FILTER_ACTION_GIFT, $package), Context::getContext()->getComputingPrecision());
-                    if ($basePriceContainsDiscount) {
+                    if ($basePriceContainsDiscount && isset($basePriceForPercentReduction)) {
                         // Gifts haven't been excluded yet, we need to do it
                         $basePriceForPercentReduction -= $freeProductsPrice;
                     }
@@ -1261,13 +1277,10 @@ class CartRuleCore extends ObjectModel
                 if ($this->reduction_exclude_special) {
                     foreach ($package_products as $product) {
                         if ($product['reduction_applies']) {
-                            if ($use_tax) {
-                                $excludedReduction = Tools::ps_round($product['total_wt'], Context::getContext()->getComputingPrecision());
-                            } else {
-                                $excludedReduction = Tools::ps_round($product['total'], Context::getContext()->getComputingPrecision());
-                            }
+                            $roundTotal = $use_tax ? $product['total_wt'] : $product['total'];
+                            $excludedReduction = Tools::ps_round($roundTotal, Context::getContext()->getComputingPrecision());
                             $order_total -= $excludedReduction;
-                            if ($basePriceContainsDiscount) {
+                            if ($basePriceContainsDiscount && isset($basePriceForPercentReduction)) {
                                 $basePriceForPercentReduction -= $excludedReduction;
                             }
                         }
@@ -1320,6 +1333,9 @@ class CartRuleCore extends ObjectModel
             // Discount (%) on the selection of products
             if ((float) $this->reduction_percent && $this->reduction_product == -2) {
                 $selected_products_reduction = 0;
+
+                // Let's get products this cart rule applies to. We should get an array, but we can also
+                // get a false in some cases. It doesn't matter much though, as long as we check what we got.
                 $selected_products = $this->checkProductRestrictionsFromCart($context->cart, true);
                 if (is_array($selected_products)) {
                     foreach ($package_products as $product) {
@@ -1353,11 +1369,8 @@ class CartRuleCore extends ObjectModel
                 if ($this->reduction_product > 0) {
                     foreach ($all_products as $product) {
                         if ($product['id_product'] == $this->reduction_product) {
-                            if ($this->reduction_tax) {
-                                $max_reduction_amount = (int) $product['cart_quantity'] * (float) $product['price_wt'];
-                            } else {
-                                $max_reduction_amount = (int) $product['cart_quantity'] * (float) $product['price'];
-                            }
+                            $productPrice = $this->reduction_tax ? $product['price_wt'] : $product['price'];
+                            $max_reduction_amount = (int) $product['cart_quantity'] * (float) $productPrice;
                             $reduction_amount = min($reduction_amount, $max_reduction_amount);
                             break;
                         }
@@ -1787,7 +1800,7 @@ class CartRuleCore extends ObjectModel
      *                     - attributes
      *                     - manufacturers
      *                     - suppliers
-     * @param array $list Entities
+     * @param array|int $list Entities
      *
      * @return bool Indicates whether the cleanup was successful
      */

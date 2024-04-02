@@ -34,7 +34,7 @@
             class="modal-content"
             aria-labelledby="modalTitle"
             aria-describedby="modalDescription"
-            v-click-outside="close"
+            v-click-outside="clickOutsideClose"
           >
             <header
               class="modal-header"
@@ -70,7 +70,7 @@
                   @click.prevent.stop="close"
                   aria-label="Close modal"
                 >
-                  {{ closeLabel }}
+                  {{ $t(closeLabel) }}
                 </button>
               </slot>
 
@@ -84,7 +84,7 @@
                   @click.prevent.stop="close"
                   aria-label="Close modal"
                 >
-                  {{ cancelLabel }}
+                  {{ $t(cancelLabel) }}
                 </button>
 
                 <button
@@ -92,7 +92,7 @@
                   class="btn btn-primary"
                   @click.prevent.stop="confirm"
                 >
-                  {{ confirmLabel }}
+                  {{ $t(confirmLabel) }}
                 </button>
               </slot>
             </footer>
@@ -108,12 +108,21 @@
   </div>
 </template>
 
-<script>
-  import '@vue/directives/click-outside';
+<script lang="ts">
+  import ClickOutside from '@PSVue/directives/click-outside';
+  import {defineComponent} from 'vue';
 
-  export default {
+  export default defineComponent({
     name: 'Modal',
+    directives: {
+      ClickOutside,
+    },
     props: {
+      closeOnClickOutside: {
+        type: Boolean,
+        required: false,
+        default: true,
+      },
       confirmation: {
         type: Boolean,
         required: false,
@@ -123,21 +132,21 @@
         type: String,
         required: false,
         default() {
-          return this.$t('modal.cancel');
+          return 'modal.cancel';
         },
       },
       confirmLabel: {
         type: String,
         required: false,
         default() {
-          return this.$t('modal.apply');
+          return 'modal.apply';
         },
       },
       closeLabel: {
         type: String,
         required: false,
         default() {
-          return this.$t('modal.close');
+          return 'modal.close';
         },
       },
       modalTitle: {
@@ -149,14 +158,19 @@
       },
     },
     methods: {
-      close() {
+      clickOutsideClose(): void {
+        if (this.closeOnClickOutside) {
+          this.$emit('close');
+        }
+      },
+      close(): void {
         this.$emit('close');
       },
-      confirm() {
+      confirm(): void {
         this.$emit('confirm');
       },
     },
-  };
+  });
 </script>
 
 <style lang="scss" scoped>

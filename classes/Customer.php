@@ -25,6 +25,8 @@
  */
 use PrestaShop\PrestaShop\Adapter\CoreException;
 use PrestaShop\PrestaShop\Adapter\ServiceLocator;
+use PrestaShop\PrestaShop\Core\Domain\Shop\Exception\InvalidShopConstraintException;
+use PrestaShop\PrestaShop\Core\Domain\Shop\ValueObject\ShopConstraint;
 
 /***
  * Class CustomerCore
@@ -113,12 +115,12 @@ class CustomerCore extends ObjectModel
     public $active = true;
 
     /** @var bool Status */
-    public $is_guest = 0;
+    public $is_guest = false;
 
     /** @var bool True if carrier has been deleted (staying in database as deleted) */
-    public $deleted = 0;
+    public $deleted = false;
 
-    /** @var string Object creation date */
+    /** @var string|null Object creation date */
     public $date_add;
 
     /** @var string Object last modification date */
@@ -136,17 +138,17 @@ class CustomerCore extends ObjectModel
     public $geoloc_postcode;
 
     /** @var bool is the customer logged in */
-    public $logged = 0;
+    public $logged = false;
 
     /** @var int id_guest meaning the guest table, not the guest customer */
     public $id_guest;
 
     public $groupBox;
 
-    /** @var string Unique token for forgot password feature */
+    /** @var string|null Unique token for forgot password feature */
     public $reset_password_token;
 
-    /** @var string token validity date for forgot password feature */
+    /** @var string|null token validity date for forgot password feature */
     public $reset_password_validity;
 
     protected $webserviceParameters = [
@@ -180,7 +182,7 @@ class CustomerCore extends ObjectModel
             'lastname' => ['type' => self::TYPE_STRING, 'validate' => 'isCustomerName', 'required' => true, 'size' => 255],
             'firstname' => ['type' => self::TYPE_STRING, 'validate' => 'isCustomerName', 'required' => true, 'size' => 255],
             'email' => ['type' => self::TYPE_STRING, 'validate' => 'isEmail', 'required' => true, 'size' => 255],
-            'passwd' => ['type' => self::TYPE_STRING, 'validate' => 'isPasswd', 'required' => true, 'size' => 255],
+            'passwd' => ['type' => self::TYPE_STRING, 'validate' => 'isHashedPassword', 'required' => true, 'size' => 255],
             'last_passwd_gen' => ['type' => self::TYPE_STRING, 'copy_post' => false],
             'id_gender' => ['type' => self::TYPE_INT, 'validate' => 'isUnsignedId'],
             'birthday' => ['type' => self::TYPE_DATE, 'validate' => 'isBirthDate'],
@@ -244,13 +246,14 @@ class CustomerCore extends ObjectModel
         $this->id_shop_group = ($this->id_shop_group) ? $this->id_shop_group : Context::getContext()->shop->id_shop_group;
         $this->id_lang = ($this->id_lang) ? $this->id_lang : Context::getContext()->language->id;
         $this->birthday = (empty($this->years) ? $this->birthday : (int) $this->years . '-' . (int) $this->months . '-' . (int) $this->days);
-        $this->secure_key = md5(uniqid(mt_rand(0, mt_getrandmax()), true));
+        $this->secure_key = md5(uniqid((string) mt_rand(0, mt_getrandmax()), true));
         $this->last_passwd_gen = date('Y-m-d H:i:s', strtotime('-' . Configuration::get('PS_PASSWD_TIME_FRONT') . 'minutes'));
 
         if ($this->newsletter && !Validate::isDate($this->newsletter_date_add)) {
             $this->newsletter_date_add = date('Y-m-d H:i:s');
         }
 
+        // Set default group of the customer depending on prestashop configuration
         if ($this->id_default_group == Configuration::get('PS_CUSTOMER_GROUP')) {
             if ($this->is_guest) {
                 $this->id_default_group = (int) Configuration::get('PS_GUEST_GROUP');
@@ -264,6 +267,8 @@ class CustomerCore extends ObjectModel
             return false;
         }
         $success = parent::add($autoDate, $nullValues);
+
+        // Update the group assignments themselves
         $this->updateGroup($this->groupBox);
 
         return $success;
@@ -272,8 +277,8 @@ class CustomerCore extends ObjectModel
     /**
      * Adds current Customer as a new Object to the database.
      *
-     * @param bool $autoDate Automatically set `date_upd` and `date_add` columns
-     * @param bool $nullValues Whether we want to use NULL values instead of empty quotes values
+     * @param bool $autodate Automatically set `date_upd` and `date_add` columns
+     * @param bool $null_values Whether we want to use NULL values instead of empty quotes values
      *
      * @return bool Indicates whether the Customer has been successfully added
      *
@@ -435,7 +440,7 @@ class CustomerCore extends ObjectModel
      *
      * @param string $email e-mail
      * @param string $plaintextPassword Password is also checked if specified
-     * @param bool $ignoreGuest
+     * @param bool $ignoreGuest to ignore guest customers
      *
      * @return bool|Customer|CustomerCore Customer instance
      *
@@ -448,11 +453,6 @@ class CustomerCore extends ObjectModel
                 'Cannot get customer by email as %s is not a valid email',
                 $email
             ));
-        }
-        if (($plaintextPassword && !Validate::isPlaintextPassword($plaintextPassword))) {
-            throw new \InvalidArgumentException(
-                'Cannot get customer by email as given password is not a valid password'
-            );
         }
 
         $shopGroup = Shop::getGroupFromShop(Shop::getContextShopID(), false);
@@ -526,7 +526,7 @@ class CustomerCore extends ObjectModel
      *
      * @param string $email
      *
-     * @return array
+     * @return array Customers
      */
     public static function getCustomersByEmail($email)
     {
@@ -570,8 +570,8 @@ class CustomerCore extends ObjectModel
      * Check if e-mail is already registered in database.
      *
      * @param string $email e-mail
-     * @param bool $returnId
-     * @param bool $ignoreGuest To exclude guest customer
+     * @param bool $returnId If true the method returns the Customer ID, or boolean
+     * @param bool $ignoreGuest to ignore guest customers
      *
      * @return bool|int Customer ID if found
      *                  `false` otherwise
@@ -613,6 +613,13 @@ class CustomerCore extends ObjectModel
         }
 
         return self::$_customerHasAddress[$key];
+    }
+
+    public static function resetStaticCache()
+    {
+        self::$_customerHasAddress = [];
+        self::$_customer_groups = [];
+        self::$_defaultGroupId = [];
     }
 
     /**
@@ -789,6 +796,8 @@ class CustomerCore extends ObjectModel
             $sql .= ' AND a.`id_address` = ' . (int) $idAddress;
         }
 
+        $sql .= ' ORDER BY a.`alias`';
+
         return $sql;
     }
 
@@ -801,9 +810,8 @@ class CustomerCore extends ObjectModel
      */
     public static function getAddressesTotalById($idCustomer)
     {
-        return Db::getInstance(_PS_USE_SQL_SLAVE_)->getValue(
-            '
-            SELECT COUNT(`id_address`)
+        return (int) Db::getInstance(_PS_USE_SQL_SLAVE_)->getValue(
+            'SELECT COUNT(`id_address`)
             FROM `' . _DB_PREFIX_ . 'address`
             WHERE `id_customer` = ' . (int) $idCustomer . '
             AND `deleted` = 0'
@@ -821,7 +829,7 @@ class CustomerCore extends ObjectModel
     public static function checkPassword($idCustomer, $passwordHash)
     {
         if (!Validate::isUnsignedId($idCustomer)) {
-            die(Tools::displayError());
+            die(Tools::displayError('Customer ID is invalid.'));
         }
 
         // Check that customers password hasn't changed since last login
@@ -853,20 +861,35 @@ class CustomerCore extends ObjectModel
      *
      * @param string $query Searched string
      * @param int|null $limit Limit query results
+     * @param ShopConstraint|null $shopConstraint provide specific shop constraint or else it will use context shops for search
      *
      * @return array|false|mysqli_result|PDOStatement|resource|null Corresponding customers
      *
      * @throws PrestaShopDatabaseException
      */
-    public static function searchByName($query, $limit = null)
+    public static function searchByName($query, $limit = null, ?ShopConstraint $shopConstraint = null)
     {
-        $sql = 'SELECT *
-                FROM `' . _DB_PREFIX_ . 'customer`
+        $sql = 'SELECT c.*,
+                GROUP_CONCAT(cg.id_group SEPARATOR \',\') AS group_ids
+                FROM `' . _DB_PREFIX_ . 'customer` c
+                LEFT JOIN `' . _DB_PREFIX_ . 'customer_group` cg ON c.id_customer = cg.id_customer
                 WHERE 1';
+
+        if ($shopConstraint) {
+            if ($shopConstraint->getShopGroupId()) {
+                throw new InvalidShopConstraintException('Shop group constraint is not supported');
+            }
+
+            if ($shopConstraint->getShopId()) {
+                // filter by shop_id if its not all shops constraint
+                $sql .= sprintf(' AND c.id_shop = %d', $shopConstraint->getShopId()->getValue());
+            }
+        }
+
         $search_items = explode(' ', $query);
-        $research_fields = ['id_customer', 'firstname', 'lastname', 'email'];
+        $research_fields = ['c.id_customer', 'c.firstname', 'c.lastname', 'c.email'];
         if (Configuration::get('PS_B2B_ENABLE')) {
-            $research_fields[] = 'company';
+            $research_fields[] = 'c.company';
         }
 
         $items = [];
@@ -880,7 +903,12 @@ class CustomerCore extends ObjectModel
             $sql .= ' AND (' . implode(' OR ', $likes) . ') ';
         }
 
-        $sql .= Shop::addSqlRestriction(Shop::SHARE_CUSTOMER);
+        if (!$shopConstraint) {
+            // this is for backwards compatibility, it uses shop context if specific shopConstraint is not provided
+            $sql .= Shop::addSqlRestriction(Shop::SHARE_CUSTOMER);
+        }
+
+        $sql .= ' GROUP BY c.id_customer ';
 
         if ($limit) {
             $sql .= ' LIMIT 0, ' . (int) $limit;
@@ -1011,7 +1039,9 @@ class CustomerCore extends ObjectModel
     public function updateGroup($list)
     {
         Hook::exec('actionCustomerBeforeUpdateGroup', ['id_customer' => $this->id, 'groups' => $list]);
-        if ($list && !empty($list)) {
+
+        // If some groups are provided, respect this. If not, automatically add the default group of the customer
+        if (!empty($list)) {
             $this->cleanGroups();
             $this->addGroups($list);
         } else {
@@ -1075,6 +1105,11 @@ class CustomerCore extends ObjectModel
         return self::$_customer_groups[$idCustomer];
     }
 
+    /**
+     * Get Groups of this Customer
+     *
+     * @return array|mixed
+     */
     public function getGroups()
     {
         return Customer::getGroupsStatic((int) $this->id);
@@ -1124,7 +1159,7 @@ class CustomerCore extends ObjectModel
     }
 
     /**
-     * Get current Country.
+     * Get current country or default country
      *
      * @param int $idCustomer
      * @param Cart|null $cart
@@ -1136,14 +1171,12 @@ class CustomerCore extends ObjectModel
         if (!$cart) {
             $cart = Context::getContext()->cart;
         }
-        if (!$cart || !$cart->{Configuration::get('PS_TAX_ADDRESS_TYPE')}) {
-            $idAddress = (int) Db::getInstance()->getValue(
-                '
-                SELECT `id_address`
-                FROM `' . _DB_PREFIX_ . 'address`
-                WHERE `id_customer` = ' . (int) $idCustomer . '
-                AND `deleted` = 0 ORDER BY `id_address`'
-            );
+        if (!$cart->{Configuration::get('PS_TAX_ADDRESS_TYPE')}) {
+            $idAddress = (int) Db::getInstance()->getValue(sprintf(
+                'SELECT `id_address` FROM `%saddress` WHERE `id_customer` = %d AND `deleted` = 0 ORDER BY `id_address`',
+                _DB_PREFIX_,
+                (int) $idCustomer
+            ));
         } else {
             $idAddress = $cart->{Configuration::get('PS_TAX_ADDRESS_TYPE')};
         }
@@ -1168,17 +1201,48 @@ class CustomerCore extends ObjectModel
      * @param int $idLang Language ID
      * @param string|null $password Password
      *
-     * @return bool
+     * @return bool Indicates if a process has been successful
      */
     public function transformToCustomer($idLang, $password = null)
     {
+        // If it's not a guest, wrong call
         if (!$this->isGuest()) {
             return false;
         }
+
+        $this->is_guest = false;
+
+        /*
+        * If this is an anonymous conversion and we want the customer to set his own password,
+        * we set a random one for now.
+        * TODO - This should be revised in the future because 16 chars can be outside of bounds of
+        * isAcceptablePasswordLength. It should not be checked.
+        */
         if (empty($password)) {
-            $password = Tools::passwdGen(8, 'RANDOM');
+            $password = Tools::passwdGen(16, 'RANDOM');
         }
-        if (!Validate::isPasswd($password)) {
+
+        if (!Validate::isAcceptablePasswordLength($password) || !Validate::isAcceptablePasswordScore($password)) {
+            return false;
+        }
+
+        /** @var \PrestaShop\PrestaShop\Core\Crypto\Hashing $crypto */
+        $crypto = ServiceLocator::get('\\PrestaShop\\PrestaShop\\Core\\Crypto\\Hashing');
+        $this->passwd = $crypto->hash($password);
+
+        /*
+        * Now, we need to update his group. The guest should have had a PS_GUEST_GROUP previously, but if
+        * not, no biggie, it's gonna be fixed now.
+        *
+        * We will remove all entries from customer_group table and add a customer group from configuration.
+        * We also need to set it as his default group.
+        */
+        $this->cleanGroups();
+        $this->addGroups([Configuration::get('PS_CUSTOMER_GROUP')]);
+        $this->id_default_group = (int) Configuration::get('PS_CUSTOMER_GROUP');
+        $this->stampResetPasswordToken();
+
+        if (!$this->update()) {
             return false;
         }
 
@@ -1187,56 +1251,55 @@ class CustomerCore extends ObjectModel
             $language = Context::getContext()->language;
         }
 
-        /** @var \PrestaShop\PrestaShop\Core\Crypto\Hashing $crypto */
-        $crypto = ServiceLocator::get('\\PrestaShop\\PrestaShop\\Core\\Crypto\\Hashing');
-        $this->is_guest = 0;
-        $this->passwd = $crypto->hash($password);
-        $this->cleanGroups();
-        $this->addGroups([Configuration::get('PS_CUSTOMER_GROUP')]);
-        $this->id_default_group = Configuration::get('PS_CUSTOMER_GROUP');
-        $this->stampResetPasswordToken();
-        if ($this->update()) {
-            $vars = [
-                '{firstname}' => $this->firstname,
-                '{lastname}' => $this->lastname,
-                '{email}' => $this->email,
-                '{url}' => Context::getContext()->link->getPageLink(
-                    'password',
-                    true,
-                    null,
-                    sprintf(
-                        'token=%s&id_customer=%s&reset_token=%s',
-                        $this->secure_key,
-                        (int) $this->id,
-                        $this->reset_password_token
-                    )
-                ),
-            ];
-            Mail::Send(
-                (int) $idLang,
-                'guest_to_customer',
-                Context::getContext()->getTranslator()->trans(
-                    'Your guest account has been transformed into a customer account',
-                    [],
-                    'Emails.Subject',
-                    $language->locale
-                ),
-                $vars,
-                $this->email,
-                $this->firstname . ' ' . $this->lastname,
+        /*
+        * Now, we will send out an email where he can set his new password.
+        *
+        * TODO:
+        * This 'guest_to_customer' email should be sent only if password was not provided. Otherwise,
+        * it should send an 'account' email without an URL. This is what CustomerPersister does. (These functions
+        * should be unified.)
+        *
+        * OrderConfirmationController and GuestTrackingController call this logic with a password and user still
+        * receives the below email, that should be changed.
+        */
+        $vars = [
+            '{firstname}' => $this->firstname,
+            '{lastname}' => $this->lastname,
+            '{email}' => $this->email,
+            '{url}' => Context::getContext()->link->getPageLink(
+                'password',
                 null,
                 null,
-                null,
-                null,
-                _PS_MAIL_DIR_,
-                false,
-                (int) $this->id_shop
-            );
+                sprintf(
+                    'token=%s&id_customer=%s&reset_token=%s',
+                    $this->secure_key,
+                    (int) $this->id,
+                    $this->reset_password_token
+                )
+            ),
+        ];
+        Mail::Send(
+            (int) $idLang,
+            'guest_to_customer',
+            Context::getContext()->getTranslator()->trans(
+                'Your guest account has been transformed into a customer account',
+                [],
+                'Emails.Subject',
+                $language->locale
+            ),
+            $vars,
+            $this->email,
+            $this->firstname . ' ' . $this->lastname,
+            null,
+            null,
+            null,
+            null,
+            _PS_MAIL_DIR_,
+            false,
+            (int) $this->id_shop
+        );
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     /**
@@ -1275,7 +1338,7 @@ class CustomerCore extends ObjectModel
 
         /* Customer is valid only if it can be load and if object password is the same as database one */
         return
-            $this->logged == 1
+            $this->logged == true
             && $this->id
             && Validate::isUnsignedId($this->id)
             && Customer::checkPassword($this->id, $this->passwd)
@@ -1292,11 +1355,12 @@ class CustomerCore extends ObjectModel
     {
         Hook::exec('actionCustomerLogoutBefore', ['customer' => $this]);
 
+        // Cookie class will handle complete destroying of the cookie and sending it out to the client
         if (isset(Context::getContext()->cookie)) {
             Context::getContext()->cookie->logout();
         }
 
-        $this->logged = 0;
+        $this->logged = false;
 
         Hook::exec('actionCustomerLogoutAfter', ['customer' => $this]);
     }
@@ -1311,11 +1375,12 @@ class CustomerCore extends ObjectModel
     {
         Hook::exec('actionCustomerLogoutBefore', ['customer' => $this]);
 
+        // Cookie class will remove all customer information from the cookie and update that cookie
         if (isset(Context::getContext()->cookie)) {
             Context::getContext()->cookie->mylogout();
         }
 
-        $this->logged = 0;
+        $this->logged = false;
 
         Hook::exec('actionCustomerLogoutAfter', ['customer' => $this]);
     }
@@ -1323,7 +1388,7 @@ class CustomerCore extends ObjectModel
     /**
      * Get last empty Cart for this Customer, when last cart is not empty return false.
      *
-     * @param bool|true $withOrder
+     * @param bool|true $withOrder Only return a Cart that have been converted into an Order
      *
      * @return bool|int
      */
@@ -1340,11 +1405,13 @@ class CustomerCore extends ObjectModel
     }
 
     /**
-     * Validate controller.
+     * Validate controller and check password
      *
      * @param bool $htmlentities
      *
      * @return array
+     *
+     * @deprecated 8.1.0 The password check has been moved in controllers and this method is not called anywhere since 1.7.0
      */
     public function validateController($htmlentities = true)
     {
@@ -1406,7 +1473,7 @@ class CustomerCore extends ObjectModel
      * Set Customer Groups
      * (for webservice).
      *
-     * @param $result
+     * @param array $result
      *
      * @return bool
      */
@@ -1448,7 +1515,7 @@ class CustomerCore extends ObjectModel
      */
     public function hasRecentResetPasswordToken()
     {
-        if (!$this->reset_password_token || $this->reset_password_token == '') {
+        if (!$this->reset_password_token) {
             return false;
         }
 
@@ -1465,7 +1532,7 @@ class CustomerCore extends ObjectModel
      */
     public function getValidResetPasswordToken()
     {
-        if (!$this->reset_password_token || $this->reset_password_token == '') {
+        if (!$this->reset_password_token) {
             return false;
         }
 

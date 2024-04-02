@@ -26,6 +26,7 @@
 
 namespace PrestaShopBundle\Form\Admin\Product;
 
+use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 use PrestaShopBundle\Form\Admin\Type\CommonAbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ButtonType;
 use Symfony\Component\Form\Extension\Core\Type\FileType;
@@ -34,27 +35,22 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
+ * @deprecated since 8.1 and will be removed in next major.
+ *
  * This form class is responsible to generate the product attachments.
  */
 class ProductAttachement extends CommonAbstractType
 {
     private $translator;
-    private $legacyContext;
     private $configuration;
 
-    /**
-     * Constructor.
-     *
-     * @param object $translator
-     * @param object $legacyContext
-     */
-    public function __construct($translator, $legacyContext)
+    public function __construct(TranslatorInterface $translator, ConfigurationInterface $configuration)
     {
         $this->translator = $translator;
-        $this->legacyContext = $legacyContext;
-        $this->configuration = $this->getConfiguration();
+        $this->configuration = $configuration;
     }
 
     /**

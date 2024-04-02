@@ -55,6 +55,7 @@ abstract class AbstractColumn implements ColumnInterface
     public function __construct($id)
     {
         $this->id = $id;
+        $this->name = '';
     }
 
     /**
@@ -128,9 +129,15 @@ abstract class AbstractColumn implements ColumnInterface
             ->setDefaults([
                 'sortable' => true,
                 'clickable' => false,
+                'alignment' => 'left',
+                'attr' => [],
             ])
             ->setAllowedTypes('sortable', 'bool')
-            ->setAllowedTypes('clickable', 'bool');
+            ->setAllowedTypes('clickable', 'bool')
+            ->setAllowedTypes('alignment', 'string')
+            ->setAllowedValues('alignment', ['center', 'left', 'right', 'justify'])
+            ->setAllowedTypes('attr', 'array')
+        ;
     }
 
     /**

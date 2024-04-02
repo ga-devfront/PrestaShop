@@ -54,6 +54,7 @@ use PrestaShop\PrestaShop\Core\Domain\Customer\QueryResult\AddressCreationCustom
 use PrestaShop\PrestaShop\Core\Domain\Customer\QueryResult\EditableCustomer;
 use PrestaShop\PrestaShop\Core\Domain\Customer\QueryResult\ViewableCustomer;
 use PrestaShop\PrestaShop\Core\Domain\Customer\ValueObject\Password;
+use PrestaShop\PrestaShop\Core\Domain\Shop\ValueObject\ShopConstraint;
 use PrestaShop\PrestaShop\Core\Domain\ShowcaseCard\Query\GetShowcaseCardIsClosed;
 use PrestaShop\PrestaShop\Core\Domain\ShowcaseCard\ValueObject\ShowcaseCard;
 use PrestaShop\PrestaShop\Core\Grid\Definition\Factory\CustomerGridDefinitionFactory;
@@ -124,7 +125,7 @@ class CustomerController extends AbstractAdminController
      *
      * Process Grid search.
      *
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))")
      *
      * @param Request $request
      *
@@ -145,7 +146,7 @@ class CustomerController extends AbstractAdminController
     /**
      * Show customer create form & handle processing of it.
      *
-     * @AdminSecurity("is_granted(['create'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller'))")
      *
      * @param Request $request
      *
@@ -168,7 +169,7 @@ class CustomerController extends AbstractAdminController
             $result = $customerFormHandler->handle($customerForm);
 
             if ($customerId = $result->getIdentifiableObjectId()) {
-                $this->addFlash('success', $this->trans('Successful creation.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful creation', 'Admin.Notifications.Success'));
 
                 if ($request->query->has('submitFormAjax')) {
                     /** @var ViewableCustomer $customerInformation */
@@ -198,7 +199,7 @@ class CustomerController extends AbstractAdminController
     /**
      * Show customer edit form & handle processing of it.
      *
-     * @AdminSecurity("is_granted(['update'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('update', request.get('_legacy_controller'))")
      *
      * @param int $customerId
      * @param Request $request
@@ -208,8 +209,8 @@ class CustomerController extends AbstractAdminController
     public function editAction($customerId, Request $request)
     {
         $this->addGroupSelectionToRequest($request);
-        /** @var ViewableCustomer $customerInformation */
-        $customerInformation = $this->getQueryBus()->handle(new GetCustomerForViewing((int) $customerId));
+        /** @var EditableCustomer $customerInformation */
+        $customerInformation = $this->getQueryBus()->handle(new GetCustomerForEditing((int) $customerId));
         $customerFormOptions = [
             'is_password_required' => false,
         ];
@@ -230,7 +231,7 @@ class CustomerController extends AbstractAdminController
             $customerFormHandler = $this->get('prestashop.core.form.identifiable_object.handler.customer_form_handler');
             $result = $customerFormHandler->handleFor((int) $customerId, $customerForm);
             if ($result->isSubmitted() && $result->isValid()) {
-                $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
 
                 return $this->redirectToRoute('admin_customers_index');
             }
@@ -328,7 +329,7 @@ class CustomerController extends AbstractAdminController
      * Set private note about customer.
      *
      * @AdminSecurity(
-     *     "is_granted(['update', 'create'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('create', request.get('_legacy_controller'))",
      *      redirectRoute="admin_customers_index"
      * )
      *
@@ -350,7 +351,7 @@ class CustomerController extends AbstractAdminController
                     (int) $customerId,
                     $data['note']
                 ));
-                $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
             } catch (CustomerException $e) {
                 $this->addFlash(
                     'error',
@@ -368,7 +369,7 @@ class CustomerController extends AbstractAdminController
      * Transforms guest to customer
      *
      * @AdminSecurity(
-     *     "is_granted(['update', 'create'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('create', request.get('_legacy_controller'))",
      *      redirectRoute="admin_customers_index"
      * )
      *
@@ -382,7 +383,7 @@ class CustomerController extends AbstractAdminController
         try {
             $this->getCommandBus()->handle(new TransformGuestToCustomerCommand((int) $customerId));
 
-            $this->addFlash('success', $this->trans('Successful creation.', 'Admin.Notifications.Success'));
+            $this->addFlash('success', $this->trans('Successful creation', 'Admin.Notifications.Success'));
         } catch (CustomerException $e) {
             $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
@@ -405,7 +406,7 @@ class CustomerController extends AbstractAdminController
      * Sets required fields for customer
      *
      * @AdminSecurity(
-     *     "is_granted(['update', 'create'], request.get('_legacy_controller'))",
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('create', request.get('_legacy_controller'))",
      *      redirectRoute="admin_customers_index"
      * )
      *
@@ -423,7 +424,7 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle(new SetRequiredFieldsForCustomerCommand($data['required_fields']));
 
-            $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+            $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
         }
 
         return $this->redirectToRoute('admin_customers_index');
@@ -441,11 +442,22 @@ class CustomerController extends AbstractAdminController
     public function searchAction(Request $request)
     {
         $query = $request->query->get('customer_search');
-        $phrases = explode(' ', $query);
+        $phrases = explode(' OR ', $query);
         $isRequestFromLegacyPage = !$request->query->has('sf2');
 
+        if (!$request->query->has('shopId')) {
+            // this is important for keeping backwards compatibility, null acts different compared to AllShops constraint.
+            $shopConstraint = null;
+        } else {
+            $shopId = $request->query->getInt('shopId');
+            $shopConstraint = $shopId ? ShopConstraint::shop($shopId) : ShopConstraint::allShops();
+        }
+
         try {
-            $customers = $this->getQueryBus()->handle(new SearchCustomers($phrases));
+            $customers = $this->getQueryBus()->handle(new SearchCustomers(
+                $phrases,
+                $shopConstraint
+            ));
         } catch (Exception $e) {
             return $this->json(
                 ['message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e))],
@@ -509,7 +521,7 @@ class CustomerController extends AbstractAdminController
      *
      * @param int $customerId
      *
-     * @return RedirectResponse
+     * @return JsonResponse
      */
     public function toggleStatusAction($customerId)
     {
@@ -522,15 +534,18 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle($editCustomerCommand);
 
-            $this->addFlash(
-                'success',
-                $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success')
-            );
+            $response = [
+                'status' => true,
+                'message' => $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success'),
+            ];
         } catch (CustomerException $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
+            $response = [
+                'status' => false,
+                'message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e)),
+            ];
         }
 
-        return $this->redirectToRoute('admin_customers_index');
+        return $this->json($response);
     }
 
     /**
@@ -544,7 +559,7 @@ class CustomerController extends AbstractAdminController
      *
      * @param int $customerId
      *
-     * @return RedirectResponse
+     * @return JsonResponse
      */
     public function toggleNewsletterSubscriptionAction($customerId)
     {
@@ -559,15 +574,18 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle($editCustomerCommand);
 
-            $this->addFlash(
-                'success',
-                $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success')
-            );
+            $response = [
+                'status' => true,
+                'message' => $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success'),
+            ];
         } catch (CustomerException $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
+            $response = [
+                'status' => false,
+                'message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e)),
+            ];
         }
 
-        return $this->redirectToRoute('admin_customers_index');
+        return $this->json($response);
     }
 
     /**
@@ -581,7 +599,7 @@ class CustomerController extends AbstractAdminController
      *
      * @param int $customerId
      *
-     * @return RedirectResponse
+     * @return JsonResponse
      */
     public function togglePartnerOfferSubscriptionAction($customerId)
     {
@@ -594,15 +612,18 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle($editCustomerCommand);
 
-            $this->addFlash(
-                'success',
-                $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success')
-            );
+            $response = [
+                'status' => true,
+                'message' => $this->trans('The status has been successfully updated.', 'Admin.Notifications.Success'),
+            ];
         } catch (CustomerException $e) {
-            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
+            $response = [
+                'status' => false,
+                'message' => $this->getErrorMessageForException($e, $this->getErrorMessages($e)),
+            ];
         }
 
-        return $this->redirectToRoute('admin_customers_index');
+        return $this->json($response);
     }
 
     /**
@@ -681,7 +702,7 @@ class CustomerController extends AbstractAdminController
 
                 $this->getCommandBus()->handle($command);
 
-                $this->addFlash('success', $this->trans('Successful deletion.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful deletion', 'Admin.Notifications.Success'));
             } catch (CustomerException $e) {
                 $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
             }
@@ -714,7 +735,7 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle($command);
 
-            $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+            $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
         } catch (CustomerException $e) {
             $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
@@ -746,7 +767,7 @@ class CustomerController extends AbstractAdminController
 
             $this->getCommandBus()->handle($command);
 
-            $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+            $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
         } catch (CustomerException $e) {
             $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages($e)));
         }
@@ -757,7 +778,7 @@ class CustomerController extends AbstractAdminController
     /**
      * Export filtered customers
      *
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))")
      *
      * @param CustomerFilters $filters
      *
@@ -775,6 +796,7 @@ class CustomerController extends AbstractAdminController
             'firstname' => $this->trans('First name', 'Admin.Global'),
             'lastname' => $this->trans('Last name', 'Admin.Global'),
             'email' => $this->trans('Email address', 'Admin.Global'),
+            'default_group' => $this->trans('Group', 'Admin.Global'),
             'company' => $this->trans('Company', 'Admin.Global'),
             'total_spent' => $this->trans('Sales', 'Admin.Global'),
             'enabled' => $this->trans('Enabled', 'Admin.Global'),
@@ -793,6 +815,7 @@ class CustomerController extends AbstractAdminController
                 'firstname' => $record['firstname'],
                 'lastname' => $record['lastname'],
                 'email' => $record['email'],
+                'default_group' => $record['default_group'],
                 'company' => '--' === $record['company'] ? '' : $record['company'],
                 'total_spent' => '--' === $record['total_spent'] ? '' : $record['total_spent'],
                 'enabled' => $record['active'],
@@ -981,6 +1004,7 @@ class CustomerController extends AbstractAdminController
     private function manageLegacyFlashes($messageId)
     {
         $messages = [
+            1 => $this->trans('Successful deletion', 'Admin.Notifications.Success'),
             4 => $this->trans('Update successful.', 'Admin.Notifications.Success'),
         ];
 
@@ -1010,7 +1034,7 @@ class CustomerController extends AbstractAdminController
 
         if (!$isSingleShopContext) {
             $toolbarButtons['add']['help'] = $this->trans(
-                'You can use this feature in a single shop context only. Switch context to enable it.',
+                'You can use this feature in a single-store context only. Switch contexts to enable it.',
                 'Admin.Orderscustomers.Feature'
             );
             $toolbarButtons['add']['href'] = '#';

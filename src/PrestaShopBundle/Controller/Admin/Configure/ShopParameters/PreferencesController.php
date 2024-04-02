@@ -55,13 +55,14 @@ class PreferencesController extends FrameworkBundleAdminController
     {
         $form = $this->get('prestashop.adapter.preferences.form_handler')->getForm();
 
-        return $this->renderForm($request, $form);
+        return $this->doRenderForm($request, $form);
     }
 
     /**
      * @param Request $request
      *
-     * @AdminSecurity("is_granted(['update', 'create', 'delete'], request.get('_legacy_controller'))",
+     * @AdminSecurity(
+     *     "is_granted('update', request.get('_legacy_controller')) && is_granted('create', request.get('_legacy_controller')) && is_granted('delete', request.get('_legacy_controller'))",
      *     message="You do not have permission to update this.",
      *     redirectRoute="admin_preferences")
      *
@@ -87,11 +88,11 @@ class PreferencesController extends FrameworkBundleAdminController
                 $this->getCommandBus()->handle(
                     new UpdateTabStatusByClassNameCommand(
                         'AdminShopGroup',
-                        $this->configuration->get('PS_MULTISHOP_FEATURE_ACTIVE')
+                        $this->getConfiguration()->get('PS_MULTISHOP_FEATURE_ACTIVE')
                     )
                 );
 
-                $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
 
                 return $this->redirectToRoute('admin_preferences');
             }
@@ -99,13 +100,13 @@ class PreferencesController extends FrameworkBundleAdminController
             $this->flashErrors($saveErrors);
         }
 
-        return $this->renderForm($request, $form);
+        return $this->doRenderForm($request, $form);
     }
 
-    private function renderForm(Request $request, FormInterface $form): Response
+    private function doRenderForm(Request $request, FormInterface $form): Response
     {
         /** @var Tools $toolsAdapter */
-        $toolsAdapter = $this->get('prestashop.adapter.tools');
+        $toolsAdapter = $this->get(Tools::class);
 
         // SSL URI is used for the merchant to check if he has SSL enabled
         $sslUri = 'https://' . $toolsAdapter->getShopDomainSsl() . $request->getRequestUri();
@@ -113,14 +114,13 @@ class PreferencesController extends FrameworkBundleAdminController
         return $this->render('@PrestaShop/Admin/Configure/ShopParameters/preferences.html.twig', [
             'layoutHeaderToolbarBtn' => [],
             'layoutTitle' => $this->trans('Preferences', 'Admin.Navigation.Menu'),
-            'requireAddonsSearch' => true,
             'requireBulkActions' => false,
             'showContentHeader' => true,
             'enableSidebar' => true,
             'help_link' => $this->generateSidebarLink('AdminPreferences'),
             'requireFilterStatus' => false,
             'generalForm' => $form->createView(),
-            'isSslEnabled' => $this->configuration->get('PS_SSL_ENABLED'),
+            'isSslEnabled' => $this->getConfiguration()->get('PS_SSL_ENABLED'),
             'sslUri' => $sslUri,
         ]);
     }

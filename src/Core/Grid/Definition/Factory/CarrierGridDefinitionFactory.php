@@ -38,12 +38,13 @@ use PrestaShop\PrestaShop\Core\Grid\Action\Type\SimpleGridAction;
 use PrestaShop\PrestaShop\Core\Grid\Column\ColumnCollection;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ActionColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\BulkActionColumn;
+use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\DataColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ImageColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\PositionColumn;
 use PrestaShop\PrestaShop\Core\Grid\Column\Type\Common\ToggleColumn;
-use PrestaShop\PrestaShop\Core\Grid\Column\Type\DataColumn;
 use PrestaShop\PrestaShop\Core\Grid\Filter\Filter;
 use PrestaShop\PrestaShop\Core\Grid\Filter\FilterCollection;
+use PrestaShopBundle\Form\Admin\Type\ReorderPositionsButtonType;
 use PrestaShopBundle\Form\Admin\Type\SearchAndResetType;
 use PrestaShopBundle\Form\Admin\Type\YesAndNoChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -56,7 +57,7 @@ class CarrierGridDefinitionFactory extends AbstractGridDefinitionFactory
     use DeleteActionTrait;
     use BulkDeleteActionTrait;
 
-    const GRID_ID = 'carrier';
+    public const GRID_ID = 'carrier';
 
     /**
      * {@inheritdoc}
@@ -204,11 +205,8 @@ class CarrierGridDefinitionFactory extends AbstractGridDefinitionFactory
                     ])
             )
             ->add(
-                (new Filter('position', TextType::class))
+                (new Filter('position', ReorderPositionsButtonType::class))
                     ->setAssociatedColumn('position')
-                    ->setTypeOptions([
-                        'required' => false,
-                    ])
             )
             ->add(
                 (new Filter('actions', SearchAndResetType::class))

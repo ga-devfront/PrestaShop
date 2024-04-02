@@ -27,6 +27,9 @@
 {if isset($name_controller)}
 	{capture name=hookName assign=hookName}display{$name_controller|ucfirst}ListBefore{/capture}
 	{hook h=$hookName}
+{elseif isset($controller_name)}
+    {capture name=hookName assign=hookName}display{$controller_name|ucfirst}ListBefore{/capture}
+    {hook h=$hookName}
 {elseif isset($smarty.get.controller)}
 	{capture name=hookName assign=hookName}display{$smarty.get.controller|ucfirst|htmlentities}ListBefore{/capture}
 	{hook h=$hookName}
@@ -65,7 +68,7 @@
 						{if $shop_link_type}
 							<th>
 								{if $shop_link_type == 'shop'}
-									{l s='Shop' d='Admin.Global'}
+									{l s='Store' d='Admin.Global'}
 								{else}
 									{l s='Shop group' d='Admin.Global'}
 								{/if}

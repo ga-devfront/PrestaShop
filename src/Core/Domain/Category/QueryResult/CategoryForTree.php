@@ -35,9 +35,19 @@ class CategoryForTree
     private $categoryId;
 
     /**
-     * @var array<int, string>
+     * @var bool
      */
-    private $localizedNames;
+    private $active;
+
+    /**
+     * @var string
+     */
+    private $name;
+
+    /**
+     * @var string
+     */
+    private $displayName;
 
     /**
      * @var CategoryForTree[]
@@ -46,16 +56,22 @@ class CategoryForTree
 
     /**
      * @param int $categoryId
-     * @param array<int, string> $localizedNames
-     * @param array $children
+     * @param bool $active
+     * @param string $name,
+     * @param string $displayName
+     * @param CategoryForTree[] $children
      */
     public function __construct(
         int $categoryId,
-        array $localizedNames,
+        bool $active,
+        string $name,
+        string $displayName,
         array $children
     ) {
         $this->categoryId = $categoryId;
-        $this->localizedNames = $localizedNames;
+        $this->active = $active;
+        $this->name = $name;
+        $this->displayName = $displayName;
         $this->children = $children;
     }
 
@@ -68,11 +84,27 @@ class CategoryForTree
     }
 
     /**
-     * @return array<int, string>
+     * @return bool
      */
-    public function getLocalizedNames(): array
+    public function getActive(): bool
     {
-        return $this->localizedNames;
+        return $this->active;
+    }
+
+    /**
+     * @return string
+     */
+    public function getName(): string
+    {
+        return $this->name;
+    }
+
+    /**
+     * @return string
+     */
+    public function getDisplayName(): string
+    {
+        return $this->displayName;
     }
 
     /**

@@ -29,7 +29,9 @@ namespace PrestaShop\PrestaShop\Adapter\Image\Uploader;
 use Configuration;
 use ImageManager;
 use ImageType;
+use PrestaShop\PrestaShop\Adapter\ServiceLocator;
 use PrestaShop\PrestaShop\Core\Image\Exception\ImageOptimizationException;
+use PrestaShop\PrestaShop\Core\Image\ImageFormatConfiguration;
 use PrestaShop\PrestaShop\Core\Image\Uploader\Exception\ImageUploadException;
 use PrestaShop\PrestaShop\Core\Image\Uploader\Exception\MemoryLimitException;
 use PrestaShop\PrestaShop\Core\Image\Uploader\ImageUploaderInterface;
@@ -85,22 +87,33 @@ final class ManufacturerImageUploader extends AbstractImageUploader implements I
                 file_exists(_PS_MANU_IMG_DIR_ . $manufacturerId . '.jpg')
             ) {
                 $imageTypes = ImageType::getImagesTypes('manufacturers');
+                $configuredImageFormats = ServiceLocator::get(ImageFormatConfiguration::class)->getGenerationFormats();
 
                 foreach ($imageTypes as $imageType) {
-                    $resized &= ImageManager::resize(
-                        _PS_MANU_IMG_DIR_ . $manufacturerId . '.jpg',
-                        _PS_MANU_IMG_DIR_ . $manufacturerId . '-' . stripslashes($imageType['name']) . '.jpg',
-                        (int) $imageType['width'],
-                        (int) $imageType['height']
-                    );
+                    foreach ($configuredImageFormats as $imageFormat) {
+                        // For JPG images, we let Imagemanager decide what to do and choose between JPG/PNG.
+                        // For webp and avif extensions, we want it to follow our command and ignore the original format.
+                        $forceFormat = ($imageFormat !== 'jpg');
 
-                    if ($generateHighDpiImages) {
                         $resized &= ImageManager::resize(
                             _PS_MANU_IMG_DIR_ . $manufacturerId . '.jpg',
-                            _PS_MANU_IMG_DIR_ . $manufacturerId . '-' . stripslashes($imageType['name']) . '2x.jpg',
-                            (int) $imageType['width'] * 2,
-                            (int) $imageType['height'] * 2
+                            _PS_MANU_IMG_DIR_ . $manufacturerId . '-' . stripslashes($imageType['name']) . '.' . $imageFormat,
+                            (int) $imageType['width'],
+                            (int) $imageType['height'],
+                            $imageFormat,
+                            $forceFormat
                         );
+
+                        if ($generateHighDpiImages) {
+                            $resized &= ImageManager::resize(
+                                _PS_MANU_IMG_DIR_ . $manufacturerId . '.jpg',
+                                _PS_MANU_IMG_DIR_ . $manufacturerId . '-' . stripslashes($imageType['name']) . '2x.' . $imageFormat,
+                                (int) $imageType['width'] * 2,
+                                (int) $imageType['height'] * 2,
+                                $imageFormat,
+                                $forceFormat
+                            );
+                        }
                     }
                 }
 

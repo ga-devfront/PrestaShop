@@ -27,9 +27,13 @@ use PrestaShop\PrestaShop\Adapter\Presenter\Order\OrderReturnPresenter;
 
 class OrderFollowControllerCore extends FrontController
 {
+    /** @var bool */
     public $auth = true;
+    /** @var string */
     public $php_self = 'order-follow';
+    /** @var string */
     public $authRedirection = 'order-follow';
+    /** @var bool */
     public $ssl = true;
 
     /**
@@ -59,7 +63,7 @@ class OrderFollowControllerCore extends FrontController
                 Tools::redirect('index.php?controller=order-detail&id_order=' . $id_order . '&errorNotReturnable');
             }
             if ($order->id_customer != $this->context->customer->id) {
-                die(Tools::displayError());
+                Tools::redirect('index.php?controller=order-detail&id_order=' . $id_order . '&errorNotReturnable');
             }
             $orderReturn = new OrderReturn();
             $orderReturn->id_customer = (int) $this->context->customer->id;
@@ -102,16 +106,7 @@ class OrderFollowControllerCore extends FrontController
             Tools::redirect('index.php');
         }
 
-        $ordersReturn = $this->getTemplateVarOrdersReturns();
-        if (count($ordersReturn) <= 0) {
-            $this->warning[] = $this->trans(
-                'You have no merchandise return authorizations.',
-                [],
-                'Shop.Notifications.Error'
-            );
-        }
-
-        $this->context->smarty->assign('ordersReturn', $ordersReturn);
+        $this->context->smarty->assign('ordersReturn', $this->getTemplateVarOrdersReturns());
 
         parent::initContent();
         $this->setTemplate('customer/order-follow');

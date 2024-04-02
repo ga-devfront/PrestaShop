@@ -68,7 +68,9 @@ class OrderReturnCore extends ObjectModel
         if ($order_detail_list) {
             foreach ($order_detail_list as $key => $order_detail) {
                 if ($qty = (int) $product_qty_list[$key]) {
-                    Db::getInstance()->insert('order_return_detail', ['id_order_return' => (int) $this->id, 'id_order_detail' => (int) $order_detail, 'product_quantity' => $qty, 'id_customization' => 0]);
+                    $orderdetail = new OrderDetail((int) $order_detail);
+                    $id_customization = $orderdetail->id_customization;
+                    Db::getInstance()->insert('order_return_detail', ['id_order_return' => (int) $this->id, 'id_order_detail' => (int) $order_detail, 'product_quantity' => $qty, 'id_customization' => (int) $id_customization]);
                 }
             }
         }
@@ -88,7 +90,7 @@ class OrderReturnCore extends ObjectModel
     {
         $order = new Order((int) $this->id_order);
         if (!Validate::isLoadedObject($order)) {
-            die(Tools::displayError());
+            die(Tools::displayError(sprintf('Order with ID "%s" could not be loaded.', $this->id_order)));
         }
         $products = $order->getProducts();
         /* Products already returned */
@@ -144,7 +146,7 @@ class OrderReturnCore extends ObjectModel
         return (int) ($data['total']);
     }
 
-    public static function getOrdersReturn($customer_id, $order_id = false, $no_denied = false, Context $context = null)
+    public static function getOrdersReturn($customer_id, $order_id = false, $no_denied = false, Context $context = null, int $idOrderReturn = null)
     {
         if (!$context) {
             $context = Context::getContext();
@@ -154,6 +156,7 @@ class OrderReturnCore extends ObjectModel
 		FROM `' . _DB_PREFIX_ . 'order_return`
 		WHERE `id_customer` = ' . (int) $customer_id .
         ($order_id ? ' AND `id_order` = ' . (int) $order_id : '') .
+        ($idOrderReturn ? ' AND `id_order_return` = ' . (int) $idOrderReturn : '') .
         ($no_denied ? ' AND `state` != 4' : '') . '
 		ORDER BY `date_add` DESC');
         foreach ($data as $k => $or) {
@@ -208,10 +211,11 @@ class OrderReturnCore extends ObjectModel
         $returns = Customization::getReturnedCustomizations($id_order);
         $order = new Order((int) $id_order);
         if (!Validate::isLoadedObject($order)) {
-            die(Tools::displayError());
+            die(Tools::displayError(sprintf('Order with ID "%s" could not be loaded.', $id_order)));
         }
         $products = $order->getProducts();
 
+        /** @var array{id_order_detail: int} $return */
         foreach ($returns as &$return) {
             $return['product_id'] = (int) $products[(int) $return['id_order_detail']]['product_id'];
             $return['product_attribute_id'] = (int) $products[(int) $return['id_order_detail']]['product_attribute_id'];
@@ -231,7 +235,7 @@ class OrderReturnCore extends ObjectModel
     /**
      * Get return details for one product line.
      *
-     * @param $id_order_detail
+     * @param int $id_order_detail
      */
     public static function getProductReturnDetail($id_order_detail)
     {

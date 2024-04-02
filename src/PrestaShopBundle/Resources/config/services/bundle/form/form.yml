@@ -1,9 +1,16 @@
 services:
-    _defaults:
-        public: true
+  _defaults:
+    public: false
+    autowire: true
+    autoconfigure: true
 
-    form.form_cloner:
-        class: PrestaShopBundle\Form\FormCloner
+  PrestaShopBundle\Form\FormCloner: ~
 
-    form.form_builder_modifier:
-        class: PrestaShopBundle\Form\FormBuilderModifier
+  form.form_cloner:
+    alias: PrestaShopBundle\Form\FormCloner
+    public: true
+    deprecated: ~
+
+  form.form_builder_modifier:
+    class: PrestaShopBundle\Form\FormBuilderModifier
+    public: true

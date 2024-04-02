@@ -46,8 +46,9 @@
           >
             <h2>{{ trans('filter_suppliers') }}</h2>
             <FilterComponent
+              ref="suppliers"
               :placeholder="trans('filter_search_suppliers')"
-              :list="this.$store.getters.suppliers"
+              :list="$store.getters.suppliers"
               class="filter-suppliers"
               item-id="supplier_id"
               label="name"
@@ -107,6 +108,7 @@
           <div class="py-3">
             <h2>{{ trans('filter_categories') }}</h2>
             <FilterComponent
+              ref="categories"
               :placeholder="trans('filter_search_category')"
               :list="categoriesList"
               class="filter-categories"
@@ -124,21 +126,21 @@
               :label="trans('filter_status_enable')"
               :checked="false"
               value="1"
-              @change="onRadioChange"
+              @change="onRadioChange(1)"
             />
             <PSRadio
               id="disable"
               :label="trans('filter_status_disable')"
               :checked="false"
               value="0"
-              @change="onRadioChange"
+              @change="onRadioChange(0)"
             />
             <PSRadio
               id="all"
               :label="trans('filter_status_all')"
               :checked="true"
               value="null"
-              @change="onRadioChange"
+              @change="onRadioChange(undefined)"
             />
           </div>
         </div>
@@ -147,39 +149,86 @@
   </div>
 </template>
 
-<script>
-  import PSSelect from '@app/widgets/ps-select';
-  import PSDatePicker from '@app/widgets/ps-datepicker';
-  import PSRadio from '@app/widgets/ps-radio';
-  import FilterComponent from './filters/filter-component';
+<script lang="ts">
+  /* eslint-disable camelcase */
+  import PSSelect from '@app/widgets/ps-select.vue';
+  import PSDatePicker from '@app/widgets/ps-datepicker.vue';
+  import PSRadio from '@app/widgets/ps-radio.vue';
+  import {defineComponent} from 'vue';
+  import translate from '@app/pages/stock/mixins/translate';
+  import {Moment} from 'moment';
+  import FilterComponent, {FilterComponentInstanceType} from './filters/filter-component.vue';
 
-  export default {
+  export interface StockCategory {
+    active: number;
+    children: Array<StockCategory>;
+    id: string;
+    id_category: number;
+    id_parent: number;
+    name: string;
+    position: string;
+    visible: boolean;
+  }
+
+  type DateFilter = {
+    [key:string]: number;
+  }
+
+  type DatepickerEvent = {
+    dateType: string;
+    date: Moment;
+    oldDate: Moment;
+  }
+
+  // sup is the starting date while inf is the end date
+  // Cf: src/PrestaShopBundle/Api/QueryParamsCollection::appendSqlDateAddFilter
+  const DATE_TYPE_SUP = 'sup';
+  const DATE_TYPE_INF = 'inf';
+
+  const Filters = defineComponent({
     computed: {
-      locale() {
+      locale(): string {
         return window.data.locale;
       },
-      isOverview() {
+      isOverview(): boolean {
         return this.$route.name === 'overview';
       },
-      employees() {
+      employees(): Array<{id_employee: number, name: string}> {
         return this.$store.state.employees;
       },
-      movementsTypes() {
+      movementsTypes(): Array<{id_stock_mvt_reason: Array<number>, name: string}> {
         return this.$store.state.movementsTypes;
       },
-      categoriesList() {
+      categoriesList(): Array<StockCategory> {
         return this.$store.getters.categories;
       },
+      suppliersFilterRef(): FilterComponentInstanceType {
+        return <FilterComponentInstanceType>(this.$refs.suppliers);
+      },
+      categoriesFilterRef(): FilterComponentInstanceType {
+        return <FilterComponentInstanceType>(this.$refs.categories);
+      },
     },
+    mixins: [translate],
     methods: {
-      onClear(event) {
-        delete this.date_add[event.dateType];
+      reset(): void {
+        const dataOption = this.$options.data;
+
+        Object.assign(
+          this.$data,
+          dataOption instanceof Function ? (<any>dataOption).apply(this) : dataOption,
+        );
+        this.suppliersFilterRef?.reset();
+        this.categoriesFilterRef?.reset();
+      },
+      onClear(event: any): void {
+        delete this.date_add[<string>event.dateType];
         this.applyFilter();
       },
-      onClick() {
+      onClick(): void {
         this.applyFilter();
       },
-      onFilterActive(list, type) {
+      onFilterActive(list: Array<any>, type: string): void {
         if (type === 'supplier') {
           this.suppliers = list;
         } else {
@@ -188,7 +237,7 @@
         this.disabled = !this.suppliers.length && !this.categories.length;
         this.applyFilter();
       },
-      applyFilter() {
+      applyFilter(): void {
         this.$store.dispatch('isLoading');
         this.$emit('applyFilter', {
           suppliers: this.suppliers,
@@ -199,7 +248,7 @@
           active: this.active,
         });
       },
-      onChange(item) {
+      onChange(item: any): void {
         if (item.itemId === 'id_stock_mvt_reason') {
           this.id_stock_mvt_reason = item.value === 'default' ? [] : item.value;
         } else {
@@ -207,13 +256,20 @@
         }
         this.applyFilter();
       },
-      onDpChange(event) {
-        this.date_add[event.dateType] = event.date.unix();
-        if (event.oldDate) {
-          this.applyFilter();
+      onDpChange(event: DatepickerEvent) {
+        if (event.dateType === DATE_TYPE_SUP) {
+          event.date.minutes(0).hours(0).seconds(1);
+          $(`.datepicker-${DATE_TYPE_INF}`).data('DateTimePicker').minDate(event.date);
+        } else if (event.dateType === DATE_TYPE_INF) {
+          event.date.minutes(59).hours(23).seconds(59);
+          $(`.datepicker-${DATE_TYPE_SUP}`).data('DateTimePicker').maxDate(event.date);
         }
+
+        this.date_add[event.dateType] = event.date.unix();
+
+        this.applyFilter();
       },
-      onRadioChange(value) {
+      onRadioChange(value: any): void {
         this.active = value;
         this.applyFilter();
       },
@@ -229,14 +285,28 @@
       this.$store.dispatch('getSuppliers');
       this.$store.dispatch('getCategories');
     },
-    data: () => ({
-      disabled: true,
-      suppliers: [],
-      categories: [],
-      id_stock_mvt_reason: [],
-      id_employee: [],
-      date_add: {},
-      active: null,
-    }),
-  };
+    data(): {
+      disabled: boolean,
+      suppliers: Array<any>,
+      categories: Array<any>,
+      id_stock_mvt_reason: Array<any>,
+      id_employee: Array<any>,
+      date_add: DateFilter,
+      active: boolean | null,
+    } {
+      return {
+        disabled: true,
+        suppliers: [],
+        categories: [],
+        id_stock_mvt_reason: [],
+        id_employee: [],
+        date_add: {},
+        active: null,
+      };
+    },
+  });
+
+  export type FiltersInstanceType = InstanceType<typeof Filters> | undefined;
+
+  export default Filters;
 </script>

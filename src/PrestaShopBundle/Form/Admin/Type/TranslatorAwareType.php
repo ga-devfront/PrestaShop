@@ -26,7 +26,7 @@
 
 namespace PrestaShopBundle\Form\Admin\Type;
 
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * PrestaShop forms needs custom domain name for field constraints
@@ -43,7 +43,7 @@ abstract class TranslatorAwareType extends CommonAbstractType
     /**
      * All languages available on shop. Used for translations.
      *
-     * @param array $locales
+     * @param array<int, array<string, mixed>> $locales
      */
     protected $locales;
 

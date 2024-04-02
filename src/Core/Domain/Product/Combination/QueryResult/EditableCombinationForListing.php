@@ -29,6 +29,7 @@ declare(strict_types=1);
 namespace PrestaShop\PrestaShop\Core\Domain\Product\Combination\QueryResult;
 
 use PrestaShop\Decimal\DecimalNumber;
+use PrestaShop\PrestaShop\Core\Domain\Product\Combination\CombinationAttributeInformation;
 
 /**
  * Transfers combination data for listing
@@ -71,9 +72,14 @@ class EditableCombinationForListing
     private $quantity;
 
     /**
-     * @var string|null
+     * @var string
      */
     private $imageUrl;
+
+    /**
+     * @var DecimalNumber
+     */
+    private $ecoTax;
 
     /**
      * @param int $combinationId
@@ -83,7 +89,8 @@ class EditableCombinationForListing
      * @param bool $default
      * @param DecimalNumber $impactOnPrice
      * @param int $quantity
-     * @param string|null $imageUrl
+     * @param string $imageUrl
+     * @param DecimalNumber $ecoTax
      */
     public function __construct(
         int $combinationId,
@@ -93,7 +100,8 @@ class EditableCombinationForListing
         bool $default,
         DecimalNumber $impactOnPrice,
         int $quantity,
-        ?string $imageUrl = null
+        string $imageUrl,
+        DecimalNumber $ecoTax
     ) {
         $this->combinationId = $combinationId;
         $this->attributesInformation = $attributesInformation;
@@ -103,6 +111,7 @@ class EditableCombinationForListing
         $this->impactOnPrice = $impactOnPrice;
         $this->quantity = $quantity;
         $this->imageUrl = $imageUrl;
+        $this->ecoTax = $ecoTax;
     }
 
     /**
@@ -162,10 +171,18 @@ class EditableCombinationForListing
     }
 
     /**
-     * @return string|null
+     * @return string
      */
-    public function getImageUrl(): ?string
+    public function getImageUrl(): string
     {
         return $this->imageUrl;
+    }
+
+    /**
+     * @return DecimalNumber
+     */
+    public function getEcoTax(): DecimalNumber
+    {
+        return $this->ecoTax;
     }
 }

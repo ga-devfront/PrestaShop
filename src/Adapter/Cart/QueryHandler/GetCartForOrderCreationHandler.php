@@ -54,7 +54,6 @@ use PrestaShop\PrestaShop\Core\Localization\LocaleInterface;
 use PrestaShopException;
 use Product;
 use Shop;
-use Symfony\Component\Translation\TranslatorInterface;
 use Tools;
 
 /**
@@ -83,29 +82,29 @@ final class GetCartForOrderCreationHandler extends AbstractCartHandler implement
     private $contextStateManager;
 
     /**
-     * @var TranslatorInterface
+     * @var int
      */
-    private $translator;
+    private $defaultCarrierId;
 
     /**
      * @param LocaleInterface $locale
      * @param int $contextLangId
      * @param Link $contextLink
      * @param ContextStateManager $contextStateManager
-     * @param TranslatorInterface $translator
+     * @param int $defaultCarrierId
      */
     public function __construct(
         LocaleInterface $locale,
         int $contextLangId,
         Link $contextLink,
         ContextStateManager $contextStateManager,
-        TranslatorInterface $translator
+        int $defaultCarrierId
     ) {
         $this->locale = $locale;
         $this->contextLangId = $contextLangId;
         $this->contextLink = $contextLink;
         $this->contextStateManager = $contextStateManager;
-        $this->translator = $translator;
+        $this->defaultCarrierId = $defaultCarrierId;
     }
 
     /**
@@ -372,7 +371,7 @@ final class GetCartForOrderCreationHandler extends AbstractCartHandler implement
             $isFreeShipping && $hideDiscounts ? '0' : (string) $legacySummary['total_shipping'],
             $isFreeShipping,
             $this->fetchCartDeliveryOptions($deliveryOptionsByAddress, $deliveryAddress),
-            (int) $carrier->id ?: null,
+            (int) $carrier->id ?: $this->defaultCarrierId ?: null,
             (bool) $cart->gift,
             (bool) $cart->recyclable,
             $cart->gift_message
@@ -440,7 +439,7 @@ final class GetCartForOrderCreationHandler extends AbstractCartHandler implement
             $orderMessage,
             $this->contextLink->getPageLink(
                 'order',
-                false,
+                null,
                 (int) $cart->getAssociatedLanguage()->getId(),
                 http_build_query([
                     'step' => 3,
@@ -545,9 +544,9 @@ final class GetCartForOrderCreationHandler extends AbstractCartHandler implement
             $product['name'],
             isset($product['attributes_small']) ? $product['attributes_small'] : '',
             $product['reference'],
-            Tools::ps_round($product['price'], $currency->precision),
+            (string) Tools::ps_round($product['price'], $currency->precision),
             $product['quantity'],
-            Tools::ps_round($product['total'], $currency->precision),
+            (string) Tools::ps_round($product['total'], $currency->precision),
             $this->contextLink->getImageLink($product['link_rewrite'], $product['id_image'], 'small_default'),
             $this->getProductCustomizedData($cart, $product),
             Product::getQuantity(

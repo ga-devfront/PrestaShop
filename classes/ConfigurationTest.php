@@ -36,7 +36,7 @@ class ConfigurationTestCore
         '/localization/fr.xml',
         '/mails/index.php',
         '/modules/index.php',
-        '/override/controllers/front/index.php',
+        '/override/index.php',
         '/pdf/order-return.tpl',
         '/translations/export/index.php',
         '/webservice/dispatcher.php',
@@ -53,7 +53,7 @@ class ConfigurationTestCore
      */
     public static function getDefaultTests()
     {
-        $tests = [
+        return [
             'upload' => false,
             'cache_dir' => 'var/cache',
             'log_dir' => 'var/logs',
@@ -66,36 +66,30 @@ class ConfigurationTestCore
             'customizable_products_dir' => 'upload',
             'virtual_products_dir' => 'download',
             'config_sf2_dir' => 'app/config',
-            'translations_sf2' => 'app/Resources/translations',
+            'translations_sf2' => 'translations',
+            'system' => [
+                'fopen', 'fclose', 'fread', 'fwrite',
+                'rename', 'file_exists', 'unlink', 'rmdir', 'mkdir',
+                'getcwd', 'chdir', 'chmod',
+            ],
+            'phpversion' => false,
+            'apache_mod_rewrite' => false,
+            'curl' => false,
+            'gd' => false,
+            'json' => false,
+            'pdo_mysql' => false,
+            'config_dir' => 'config',
+            'files' => false,
+            'mails_dir' => 'mails',
+            'openssl' => false,
+            'openssl_key_generation' => false,
+            'simplexml' => false,
+            'zip' => false,
+            'fileinfo' => false,
+            'intl' => false,
+            'memory_limit' => false,
+            'mbstring' => false,
         ];
-
-        if (!defined('_PS_HOST_MODE_')) {
-            $tests = array_merge($tests, [
-                'system' => [
-                    'fopen', 'fclose', 'fread', 'fwrite',
-                    'rename', 'file_exists', 'unlink', 'rmdir', 'mkdir',
-                    'getcwd', 'chdir', 'chmod',
-                ],
-                'phpversion' => false,
-                'apache_mod_rewrite' => false,
-                'curl' => false,
-                'gd' => false,
-                'json' => false,
-                'pdo_mysql' => false,
-                'config_dir' => 'config',
-                'files' => false,
-                'mails_dir' => 'mails',
-                'openssl' => false,
-                'simplexml' => false,
-                'zip' => false,
-                'fileinfo' => false,
-                'intl' => false,
-                'memory_limit' => false,
-                'mbstring' => false,
-            ]);
-        }
-
-        return $tests;
     }
 
     /**
@@ -405,13 +399,23 @@ class ConfigurationTestCore
         return function_exists('openssl_encrypt');
     }
 
-    public static function test_sessions()
+    public static function test_openssl_key_generation()
     {
-        if (!$path = @ini_get('session.save_path')) {
-            return true;
+        $privateKey = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+
+        if ($privateKey === false) {
+            return false;
         }
 
-        return is_writable($path);
+        return true;
+    }
+
+    public static function test_sessions()
+    {
+        return in_array(session_status(), [PHP_SESSION_ACTIVE, PHP_SESSION_NONE], true);
     }
 
     public static function test_dom()

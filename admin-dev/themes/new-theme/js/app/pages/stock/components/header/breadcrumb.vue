@@ -39,18 +39,22 @@
   </nav>
 </template>
 
-<script>
-  export default {
+<script lang="ts">
+  import {defineComponent} from 'vue';
+  import translate from '@app/pages/stock/mixins/translate';
+
+  export default defineComponent({
+    mixins: [translate],
     computed: {
-      isOverview() {
+      isOverview(): boolean {
         return this.$route.name === 'overview';
       },
-      catalogLink() {
+      catalogLink(): string {
         return window.data.catalogUrl;
       },
-      stockLink() {
+      stockLink(): string {
         return window.data.stockUrl;
       },
     },
-  };
+  });
 </script>

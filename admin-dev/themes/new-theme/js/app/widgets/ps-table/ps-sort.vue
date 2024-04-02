@@ -25,7 +25,7 @@
 <template>
   <div
     class="ps-sortable-column"
-    data-sort-col-name="id_product"
+    :data-sort-col-name="this.order"
     :data-sort-is-current="isCurrent"
     :data-sort-direction="sortDirection"
     @click="sortToggle"
@@ -39,8 +39,10 @@
   </div>
 </template>
 
-<script>
-  export default {
+<script lang="ts">
+  import {defineComponent} from 'vue';
+
+  export default defineComponent({
     props: {
       // column name
       order: {
@@ -54,19 +56,21 @@
       },
     },
     methods: {
-      sortToggle() {
+      sortToggle(): void {
         // toggle direction
         this.sortDirection = (this.sortDirection === 'asc') ? 'desc' : 'asc';
         this.$emit('sort', this.order, this.sortDirection);
       },
     },
-    data: () => ({
-      sortDirection: 'asc',
-    }),
+    data() {
+      return {
+        sortDirection: 'desc',
+      };
+    },
     computed: {
-      isCurrent() {
+      isCurrent(): boolean {
         return this.currentSort === this.order;
       },
     },
-  };
+  });
 </script>

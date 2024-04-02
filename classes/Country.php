@@ -29,6 +29,7 @@
  */
 class CountryCore extends ObjectModel
 {
+    /** @var int */
     public $id;
 
     /** @var int Zone id which country belongs */
@@ -43,7 +44,7 @@ class CountryCore extends ObjectModel
     /** @var int international call prefix */
     public $call_prefix;
 
-    /** @var string Name */
+    /** @var string[]|string Name */
     public $name;
 
     /** @var bool Contain states */
@@ -66,11 +67,11 @@ class CountryCore extends ObjectModel
 
     protected static $_idZones = [];
 
-    const GEOLOC_ALLOWED = 0;
+    public const GEOLOC_ALLOWED = 0;
 
-    const GEOLOC_CATALOG_MODE = 1;
+    public const GEOLOC_CATALOG_MODE = 1;
 
-    const GEOLOC_FORBIDDEN = 2;
+    public const GEOLOC_FORBIDDEN = 2;
 
     /**
      * @see ObjectModel::$definition
@@ -176,14 +177,14 @@ class CountryCore extends ObjectModel
      * Get a country ID with its iso code.
      *
      * @param string $isoCode Country iso code
-     * @param bool $active return only active coutries
+     * @param bool $active return only active countries
      *
-     * @return int Country ID
+     * @return int|bool Country ID
      */
     public static function getByIso($isoCode, $active = false)
     {
         if (!Validate::isLanguageIsoCode($isoCode)) {
-            die(Tools::displayError());
+            die(Tools::displayError('Given iso code (' . $isoCode . ') is not valid.'));
         }
         $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->getRow(
             '
@@ -210,7 +211,7 @@ class CountryCore extends ObjectModel
     public static function getIdZone($idCountry)
     {
         if (!Validate::isUnsignedId($idCountry)) {
-            die(Tools::displayError());
+            die(Tools::displayError('Country ID is invalid.'));
         }
 
         if (isset(self::$_idZones[$idCountry])) {
@@ -263,7 +264,7 @@ class CountryCore extends ObjectModel
      *
      * @param int $idCountry Country ID
      *
-     * @return string Country iso
+     * @return string|bool Country iso
      */
     public static function getIsoById($idCountry)
     {
@@ -286,7 +287,7 @@ class CountryCore extends ObjectModel
      * @param int|null $idLang Language ID
      * @param string $country Country Name
      *
-     * @return int Country ID
+     * @return int|bool Country ID
      */
     public static function getIdByName($idLang, $country)
     {
@@ -344,7 +345,7 @@ class CountryCore extends ObjectModel
 		FROM `' . _DB_PREFIX_ . 'country`
 		WHERE `id_country` = ' . (int) $idCountry);
 
-        if (isset($zipCodeFormat) && $zipCodeFormat) {
+        if ($zipCodeFormat) {
             return $zipCodeFormat;
         }
 
@@ -361,8 +362,11 @@ class CountryCore extends ObjectModel
      */
     public static function getCountriesByZoneId($idZone, $idLang)
     {
-        if (empty($idZone) || empty($idLang)) {
-            die(Tools::displayError());
+        if (empty($idZone)) {
+            die(Tools::displayError('Zone ID is invalid.'));
+        }
+        if (empty($idLang)) {
+            die(Tools::displayError('Lang ID is invalid.'));
         }
 
         $sql = ' SELECT DISTINCT c.*, cl.*

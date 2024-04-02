@@ -38,20 +38,24 @@
     </div>
   </div>
 </template>
-<script>
-  export default {
+
+<script lang="ts">
+  import {defineComponent} from 'vue';
+
+  export default defineComponent({
     props: {
       thumbnail: {
         type: String,
-        required: true,
+        required: false,
+        default: '',
       },
     },
     computed: {
-      displayThumb() {
-        return !!this.thumbnail;
+      displayThumb(): boolean {
+        return this.thumbnail === '' ? false : !!this.thumbnail;
       },
     },
-  };
+  });
 </script>
 
 <style lang="scss" scoped>

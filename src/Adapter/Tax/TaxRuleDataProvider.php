@@ -34,6 +34,8 @@ use TaxManagerFactory;
 use TaxRulesGroup;
 
 /**
+ * @deprecated since 8.1 and will be removed in next major.
+ *
  * This class will provide data from DB / ORM about tax rules.
  */
 class TaxRuleDataProvider
@@ -87,7 +89,7 @@ class TaxRuleDataProvider
                 'computation_method' => (int) $tax_calculator->computation_method,
             ];
 
-            if (isset($tax_calculator->taxes) && count($tax_calculator->taxes)) {
+            if (!empty($tax_calculator->taxes)) {
                 foreach ($tax_calculator->taxes as $tax) {
                     $tax_rates[$id_tax_rules_group]['rates'][] = (float) $tax->rate;
                 }
@@ -122,7 +124,7 @@ class TaxRuleDataProvider
         $choices = [];
 
         foreach ($taxRulesGroups as $taxRulesGroup) {
-            $choices[$taxRulesGroup['name']] = $taxRulesGroup['id_tax_rules_group'];
+            $choices[$taxRulesGroup['name']] = (int) $taxRulesGroup['id_tax_rules_group'];
         }
 
         return $choices;

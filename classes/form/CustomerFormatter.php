@@ -23,7 +23,7 @@
  * @copyright Since 2007 PrestaShop SA and Contributors
  * @license   https://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
  */
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class CustomerFormatterCore implements FormFormatterInterface
 {
@@ -231,6 +231,7 @@ class CustomerFormatterCore implements FormFormatterInterface
         }
 
         // ToDo, replace the hook exec with HookFinder when the associated PR will be merged
+        // An array [module_name => module_output] will be returned
         $additionalCustomerFormFields = Hook::exec('additionalCustomerFormFields', ['fields' => &$format], null, true);
 
         if (is_array($additionalCustomerFormFields)) {

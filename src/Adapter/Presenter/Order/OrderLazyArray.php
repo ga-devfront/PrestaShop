@@ -41,6 +41,7 @@ use PrestaShop\PrestaShop\Adapter\Presenter\AbstractLazyArray;
 use PrestaShop\PrestaShop\Adapter\Presenter\Cart\CartPresenter;
 use PrestaShop\PrestaShop\Adapter\Presenter\Object\ObjectPresenter;
 use PrestaShop\PrestaShop\Adapter\Product\PriceFormatter;
+use PrestaShop\PrestaShop\Core\Util\ColorBrightnessCalculator;
 use PrestaShopBundle\Translation\TranslatorComponent;
 use PrestaShopException;
 use ProductDownload;
@@ -178,7 +179,11 @@ class OrderLazyArray extends AbstractLazyArray
             $orderProduct['id_product_attribute'] = $orderProduct['product_attribute_id'];
 
             $productPrice = $includeTaxes ? 'product_price_wt' : 'product_price';
-            $totalPrice = $includeTaxes ? 'total_wt' : 'total_price';
+            if (is_array($orderProduct['customizedDatas']) && count($orderProduct['customizedDatas'])) {
+                $totalPrice = $includeTaxes ? 'total_customization_wt' : 'total_customization';
+            } else {
+                $totalPrice = $includeTaxes ? 'total_wt' : 'total_price';
+            }
 
             $orderProduct['price'] = $this->priceFormatter->format(
                 $orderProduct[$productPrice],
@@ -307,8 +312,8 @@ class OrderLazyArray extends AbstractLazyArray
                 $historyId = 'current';
             }
             $orderHistory[$historyId] = $history;
-            $orderHistory[$historyId]['history_date'] = Tools::displayDate($history['date_add'], null, false);
-            $orderHistory[$historyId]['contrast'] = (Tools::getBrightness($history['color']) > 128) ? 'dark' : 'bright';
+            $orderHistory[$historyId]['history_date'] = Tools::displayDate($history['date_add'], false);
+            $orderHistory[$historyId]['contrast'] = (new ColorBrightnessCalculator())->isBright($history['color']) ? 'dark' : 'bright';
         }
 
         if (!isset($orderHistory['current'])) {
@@ -332,8 +337,7 @@ class OrderLazyArray extends AbstractLazyArray
 
         foreach ($customerMessages as $cmId => $customerMessage) {
             $messages[$cmId] = $customerMessage;
-            $messages[$cmId]['message'] = nl2br($customerMessage['message']);
-            $messages[$cmId]['message_date'] = Tools::displayDate($customerMessage['date_add'], null, true);
+            $messages[$cmId]['message_date'] = Tools::displayDate($customerMessage['date_add'], true);
             if (isset($customerMessage['elastname']) && $customerMessage['elastname']) {
                 $messages[$cmId]['name'] = $customerMessage['efirstname'] . ' ' . $customerMessage['elastname'];
             } elseif ($customerMessage['clastname']) {
@@ -402,8 +406,8 @@ class OrderLazyArray extends AbstractLazyArray
         $order = $this->order;
 
         $carrier = $this->getCarrier();
-        if (!empty($carrier['url']) && !empty($order->shipping_number)) {
-            return str_replace('@', $order->shipping_number, $carrier['url']);
+        if (!empty($carrier['url']) && !empty($order->getShippingNumber())) {
+            return str_replace('@', $order->getShippingNumber(), $carrier['url']);
         }
 
         return '';

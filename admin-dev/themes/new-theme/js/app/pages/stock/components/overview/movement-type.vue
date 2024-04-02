@@ -40,29 +40,33 @@
   </div>
 </template>
 
-<script>
-  import PSButton from '@app/widgets/ps-button';
+<script lang="ts">
+  import PSButton from '@app/widgets/ps-button.vue';
+  import {defineComponent} from 'vue';
+  import TranslationMixin from '@app/pages/stock/mixins/translate';
 
-  export default {
+  export default defineComponent({
     computed: {
-      disabled() {
+      disabled(): boolean {
         return !this.$store.state.hasQty;
       },
-      classObject() {
+      classObject(): {'btn-primary': boolean} {
         return {
           'btn-primary': !this.disabled,
         };
       },
     },
+    mixins: [TranslationMixin],
     methods: {
-      sendQty() {
+      sendQty(): void {
+        this.$store.state.hasQty = false;
         this.$store.dispatch('updateQtyByProductsId');
       },
     },
     components: {
       PSButton,
     },
-  };
+  });
 </script>
 
 <style lang="scss" scoped>

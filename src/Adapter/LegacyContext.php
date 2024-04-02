@@ -112,6 +112,11 @@ class LegacyContext
         return __PS_BASE_URI__ . basename(_PS_ADMIN_DIR_) . '/';
     }
 
+    public function getCountryId(): int
+    {
+        return $this->getContext()->country->id;
+    }
+
     /**
      * Adapter to get Admin HTTP link.
      *
@@ -210,6 +215,7 @@ class LegacyContext
      * @param string[] $jsRouterMetadata array to provide base_url and security token for JS Router
      * @param string $metaTitle
      * @param bool $useRegularH1Structure allows complex <h1> structure if set to false
+     * @param string $baseLayout
      *
      * @return string The html layout
      */
@@ -224,7 +230,8 @@ class LegacyContext
         $helpLink = '',
         $jsRouterMetadata = [],
         $metaTitle = '',
-        $useRegularH1Structure = true
+        $useRegularH1Structure = true,
+        $baseLayout = 'layout.tpl'
     ) {
         $originCtrl = new AdminLegacyLayoutControllerCore(
             $controllerName,
@@ -239,6 +246,7 @@ class LegacyContext
             $metaTitle,
             $useRegularH1Structure
         );
+        $originCtrl->layout = $baseLayout;
         $originCtrl->run();
 
         return $originCtrl->outPutHtml;

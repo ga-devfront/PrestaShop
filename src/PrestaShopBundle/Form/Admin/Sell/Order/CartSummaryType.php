@@ -32,7 +32,7 @@ use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Form type for cart summary block of order create page
@@ -89,6 +89,10 @@ class CartSummaryType extends AbstractType
                     [],
                     'Admin.Actions'
                 ),
+                'attr' => [
+                    'data-toggle' => 'select2',
+                    'data-minimumResultsForSearch' => '7',
+                ],
             ])
             ->add('order_state', ChoiceType::class, [
                 'choices' => $this->orderStatesChoiceProvider->getChoices(),
@@ -98,6 +102,10 @@ class CartSummaryType extends AbstractType
                     [],
                     'Admin.Actions'
                 ),
+                'attr' => [
+                    'data-toggle' => 'select2',
+                    'data-minimumResultsForSearch' => '7',
+                ],
             ]);
     }
 

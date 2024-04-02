@@ -26,10 +26,12 @@
 
 /* Debug only */
 if (!defined('_PS_MODE_DEV_')) {
-    define('_PS_MODE_DEV_', true);
+define('_PS_MODE_DEV_', false);
 }
 /* Compatibility warning */
-define('_PS_DISPLAY_COMPATIBILITY_WARNING_', true);
+if (!defined('_PS_DISPLAY_COMPATIBILITY_WARNING_')) {
+define('_PS_DISPLAY_COMPATIBILITY_WARNING_', false);
+}
 if (_PS_MODE_DEV_ === true) {
     $errorReportingLevel = E_ALL | E_STRICT;
     if (_PS_DISPLAY_COMPATIBILITY_WARNING_ === false) {
@@ -56,11 +58,11 @@ if (!defined('_PS_ALLOW_MULTI_STATEMENTS_QUERIES_')) {
     define('_PS_ALLOW_MULTI_STATEMENTS_QUERIES_', false);
 }
 
-$currentDir = dirname(__FILE__);
-
-if (!defined('_PS_HOST_MODE_') && (getenv('_PS_HOST_MODE_') || getenv('REDIRECT__PS_HOST_MODE_'))) {
-    define('_PS_HOST_MODE_', getenv('_PS_HOST_MODE_') ? getenv('_PS_HOST_MODE_') : getenv('REDIRECT__PS_HOST_MODE_'));
+if (!defined('_PS_DO_NOT_LOAD_CONFIGURATION_')) {
+    define('_PS_DO_NOT_LOAD_CONFIGURATION_', false);
 }
+
+$currentDir = dirname(__FILE__);
 
 if (!defined('_PS_ROOT_DIR_') && (getenv('_PS_ROOT_DIR_') || getenv('REDIRECT__PS_ROOT_DIR_'))) {
     define('_PS_ROOT_DIR_', getenv('_PS_ROOT_DIR_') ? getenv('_PS_ROOT_DIR_') : getenv('REDIRECT__PS_ROOT_DIR_'));
@@ -135,10 +137,6 @@ if (!defined('_PS_GEOIP_CITY_FILE_')) {
 }
 
 define('_PS_VENDOR_DIR_', _PS_CORE_DIR_.'/vendor/');
-define('_PS_PEAR_XML_PARSER_PATH_', _PS_TOOL_DIR_.'pear_xml_parser/');
-define('_PS_SWIFT_DIR_', _PS_TOOL_DIR_.'swift/');
-define('_PS_TAASC_PATH_', _PS_TOOL_DIR_.'taasc/');
-define('_PS_TCPDF_PATH_', _PS_TOOL_DIR_.'tcpdf/');
 
 define('_PS_IMG_SOURCE_DIR_', _PS_ROOT_DIR_.'/img/');
 if (!defined('_PS_IMG_DIR_')) {
@@ -146,12 +144,7 @@ if (!defined('_PS_IMG_DIR_')) {
     define('_PS_IMG_DIR_', _PS_ROOT_DIR_.$dir);
 }
 
-if (!defined('_PS_HOST_MODE_')) {
-    define('_PS_CORE_IMG_DIR_', _PS_CORE_DIR_.'/img/');
-} else {
-    define('_PS_CORE_IMG_DIR_', _PS_ROOT_DIR_.'/img/');
-}
-
+define('_PS_CORE_IMG_DIR_', _PS_CORE_DIR_.'/img/');
 define('_PS_CAT_IMG_DIR_', _PS_IMG_DIR_.'c/');
 define('_PS_COL_IMG_DIR_', _PS_IMG_DIR_.'co/');
 define('_PS_EMPLOYEE_IMG_DIR_', _PS_IMG_DIR_.'e/');
@@ -159,7 +152,9 @@ define('_PS_GENDERS_DIR_', _PS_IMG_DIR_.'genders/');
 define('_PS_LANG_IMG_DIR_', _PS_IMG_DIR_.'l/');
 define('_PS_MANU_IMG_DIR_', _PS_IMG_DIR_.'m/');
 define('_PS_ORDER_STATE_IMG_DIR_', _PS_IMG_DIR_.'os/');
-define('_PS_PROD_IMG_DIR_', _PS_IMG_DIR_.'p/');
+define('_PS_PRODUCT_IMG_DIR_', _PS_IMG_DIR_ . 'p/');
+// @deprecated since 1.7.8.1 version use _PS_PRODUCT_IMG_DIR_ instead
+define('_PS_PROD_IMG_DIR_', _PS_PRODUCT_IMG_DIR_);
 define('_PS_PROFILE_IMG_DIR_', _PS_IMG_DIR_.'pr/');
 define('_PS_SHIP_IMG_DIR_', _PS_IMG_DIR_.'s/');
 define('_PS_STORE_IMG_DIR_', _PS_IMG_DIR_.'st/');
@@ -206,7 +201,7 @@ define('PS_CARRIERS_AND_CARRIER_MODULES_NEED_RANGE', 4);
 define('ALL_CARRIERS', 5);
 
 /* SQL Replication management */
-define('_PS_USE_SQL_SLAVE_', 0);
+define('_PS_USE_SQL_SLAVE_', false);
 
 /* PS Technical configuration */
 define('_PS_ADMIN_PROFILE_', 1);

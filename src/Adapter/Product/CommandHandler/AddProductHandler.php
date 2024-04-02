@@ -29,6 +29,7 @@ declare(strict_types=1);
 namespace PrestaShop\PrestaShop\Adapter\Product\CommandHandler;
 
 use PrestaShop\PrestaShop\Adapter\Product\Repository\ProductRepository;
+use PrestaShop\PrestaShop\Adapter\Tools;
 use PrestaShop\PrestaShop\Core\Domain\Product\Command\AddProductCommand;
 use PrestaShop\PrestaShop\Core\Domain\Product\CommandHandler\AddProductHandlerInterface;
 use PrestaShop\PrestaShop\Core\Domain\Product\ValueObject\ProductId;
@@ -44,12 +45,19 @@ final class AddProductHandler implements AddProductHandlerInterface
     private $productRepository;
 
     /**
+     * @var Tools
+     */
+    private $tools;
+
+    /**
      * @param ProductRepository $productRepository
      */
     public function __construct(
-        ProductRepository $productRepository
+        ProductRepository $productRepository,
+        Tools $tools
     ) {
         $this->productRepository = $productRepository;
+        $this->tools = $tools;
     }
 
     /**
@@ -57,7 +65,23 @@ final class AddProductHandler implements AddProductHandlerInterface
      */
     public function handle(AddProductCommand $command): ProductId
     {
-        $product = $this->productRepository->create($command->getLocalizedNames(), $command->getProductType()->getValue());
+        $localizedNames = $command->getLocalizedNames();
+        $localizedLinkRewrites = [];
+
+        foreach ($localizedNames as $langId => $name) {
+            if (empty($name)) {
+                continue;
+            }
+
+            $localizedLinkRewrites[$langId] = $this->tools->linkRewrite($name);
+        }
+
+        $product = $this->productRepository->create(
+            $command->getLocalizedNames(),
+            $localizedLinkRewrites,
+            $command->getProductType()->getValue(),
+            $command->getShopId()
+        );
 
         return new ProductId((int) $product->id);
     }

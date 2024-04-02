@@ -27,7 +27,6 @@
 namespace PrestaShopBundle\Controller\Admin\Improve\Design;
 
 use Hook;
-use PrestaShop\PrestaShop\Adapter\Module\Module;
 use PrestaShop\PrestaShop\Core\Domain\Hook\Command\UpdateHookStatusCommand;
 use PrestaShop\PrestaShop\Core\Domain\Hook\Exception\HookException;
 use PrestaShop\PrestaShop\Core\Domain\Hook\Exception\HookNotFoundException;
@@ -54,7 +53,9 @@ class PositionsController extends FrameworkBundleAdminController
      * Display hooks positions.
      *
      * @Template("@PrestaShop/Admin/Improve/Design/positions.html.twig")
-     * @AdminSecurity("is_granted(['read', 'update', 'create', 'delete'], request.get('_legacy_controller')~'_')", message="Access denied.")
+     * @AdminSecurity(
+     *     "is_granted('read', request.get('_legacy_controller')) || is_granted('update', request.get('_legacy_controller')) || is_granted('create', request.get('_legacy_controller')) || is_granted('delete', request.get('_legacy_controller'))",
+     *     message="Access denied.")
      *
      * @param Request $request
      *
@@ -62,6 +63,13 @@ class PositionsController extends FrameworkBundleAdminController
      */
     public function indexAction(Request $request)
     {
+        $isSingleShopContext = $this->get('prestashop.adapter.shop.context')->isSingleShopContext();
+        if (!$isSingleShopContext) {
+            return [
+                'isSingleShopContext' => $isSingleShopContext,
+            ];
+        }
+
         $moduleAdapter = $this->get('prestashop.adapter.legacy.module');
         $hookProvider = $this->get('prestashop.adapter.legacy.hook');
         $installedModules = $moduleAdapter->getModulesInstalled();
@@ -84,8 +92,7 @@ class PositionsController extends FrameworkBundleAdminController
         $hooks = $hookProvider->getHooks();
         foreach ($hooks as $key => $hook) {
             $hooks[$key]['modules'] = $hookProvider->getModulesFromHook(
-                $hook['id_hook'],
-                $this->selectedModule
+                $hook['id_hook']
             );
             // No module found, no need to continue
             if (!is_array($hooks[$key]['modules'])) {
@@ -123,13 +130,13 @@ class PositionsController extends FrameworkBundleAdminController
         return [
             'layoutHeaderToolbarBtn' => [
                 'save' => [
+                    'class' => 'btn-primary transplant-module-button',
                     'href' => $saveUrl,
                     'desc' => $this->trans('Transplant a module', 'Admin.Design.Feature'),
                 ],
             ],
             'selectedModule' => $this->selectedModule,
             'layoutTitle' => $this->trans('Positions', 'Admin.Navigation.Menu'),
-            'requireAddonsSearch' => false,
             'requireBulkActions' => false,
             'requireFilterStatus' => false,
             'showContentHeader' => true,
@@ -137,14 +144,14 @@ class PositionsController extends FrameworkBundleAdminController
             'help_link' => $this->generateSidebarLink('AdminModulesPositions'),
             'hooks' => $hooks,
             'modules' => $modules,
-            'canMove' => $this->get('prestashop.adapter.shop.context')->isSingleShopContext(),
+            'isSingleShopContext' => $isSingleShopContext,
         ];
     }
 
     /**
      * Unhook module.
      *
-     * @AdminSecurity("is_granted(['delete'], request.get('_legacy_controller')~'_')", message="Access denied.")
+     * @AdminSecurity("is_granted('delete', request.get('_legacy_controller')~'_')", message="Access denied.")
      *
      * @param Request $request
      *
@@ -241,7 +248,7 @@ class PositionsController extends FrameworkBundleAdminController
     /**
      * Toggle hook status
      *
-     * @AdminSecurity("is_granted(['update'], request.get('_legacy_controller')~'_')", message="Access denied.")
+     * @AdminSecurity("is_granted('update', request.get('_legacy_controller')~'_')", message="Access denied.")
      *
      * @param Request $request
      *
@@ -277,7 +284,7 @@ class PositionsController extends FrameworkBundleAdminController
     private function getErrorMessages(): array
     {
         return [
-            HookNotFoundException::class => $this->trans('The object cannot be loaded (or found)', 'Admin.Notifications.Error'),
+            HookNotFoundException::class => $this->trans('The object cannot be loaded (or found).', 'Admin.Notifications.Error'),
             HookUpdateHookException::class => $this->trans('An error occurred while updating the status for an object.', 'Admin.Notifications.Error'),
         ];
     }

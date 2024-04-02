@@ -32,30 +32,30 @@ class PackCore extends Product
     /**
      * Only decrement pack quantity.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PACK_ONLY = PackStockType::STOCK_TYPE_PACK_ONLY;
+    public const STOCK_TYPE_PACK_ONLY = PackStockType::STOCK_TYPE_PACK_ONLY;
 
     /**
      * Only decrement pack products quantities.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PRODUCTS_ONLY = PackStockType::STOCK_TYPE_PRODUCTS_ONLY;
+    public const STOCK_TYPE_PRODUCTS_ONLY = PackStockType::STOCK_TYPE_PRODUCTS_ONLY;
 
     /**
      * Decrement pack quantity and pack products quantities.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_PACK_BOTH = PackStockType::STOCK_TYPE_BOTH;
+    public const STOCK_TYPE_PACK_BOTH = PackStockType::STOCK_TYPE_BOTH;
 
     /**
      * Use pack quantity default setting.
      *
-     * @var string
+     * @var int
      */
-    const STOCK_TYPE_DEFAULT = PackStockType::STOCK_TYPE_DEFAULT;
+    public const STOCK_TYPE_DEFAULT = PackStockType::STOCK_TYPE_DEFAULT;
 
     protected static $cachePackItems = [];
     protected static $cacheIsPack = [];
@@ -71,7 +71,7 @@ class PackCore extends Product
     /**
      * Is product a pack?
      *
-     * @param $id_product
+     * @param int $id_product
      *
      * @return bool
      */
@@ -87,7 +87,8 @@ class PackCore extends Product
 
         if (!array_key_exists($id_product, self::$cacheIsPack)) {
             $result = Db::getInstance()->getValue('SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'pack` WHERE id_product_pack = ' . (int) $id_product);
-            self::$cacheIsPack[$id_product] = ($result > 0);
+            $productType = Db::getInstance()->getValue('SELECT product_type FROM `' . _DB_PREFIX_ . 'product` WHERE id_product = ' . (int) $id_product);
+            self::$cacheIsPack[$id_product] = ($result > 0) || $productType === ProductType::TYPE_PACK;
         }
 
         return self::$cacheIsPack[$id_product];
@@ -134,8 +135,30 @@ class PackCore extends Product
         $price_display_method = !self::$_taxCalculationMethod;
         $items = Pack::getItems($id_product, Configuration::get('PS_LANG_DEFAULT'));
         foreach ($items as $item) {
-            /* @var Product $item */
-            $sum += $item->getPrice($price_display_method, ($item->id_pack_product_attribute ? $item->id_pack_product_attribute : null)) * $item->pack_quantity;
+            $pricePerItem = $item->getPrice($price_display_method, ($item->id_pack_product_attribute ? $item->id_pack_product_attribute : null));
+
+            // Different calculation depending on rounding type
+            switch (Configuration::get('PS_ROUND_TYPE')) {
+                case Order::ROUND_TOTAL:
+                    $sum += $pricePerItem * $item->pack_quantity;
+
+                    break;
+                case Order::ROUND_LINE:
+                    $sum += Tools::ps_round(
+                        $pricePerItem * $item->pack_quantity,
+                        Context::getContext()->getComputingPrecision()
+                    );
+
+                    break;
+                case Order::ROUND_ITEM:
+                default:
+                    $sum += Tools::ps_round(
+                        $pricePerItem,
+                        Context::getContext()->getComputingPrecision()
+                    ) * $item->pack_quantity;
+
+                    break;
+            }
         }
 
         return $sum;
@@ -230,13 +253,16 @@ class PackCore extends Product
     }
 
     /**
-     * Returns the available quantity of a given pack (this method already have decreased products in cart).
+     * Returns the available quantity of a given pack.
      *
-     * @param int $id_product Product id
-     * @param int $id_product_attribute Product attribute id (optional)
-     * @param bool|null $cacheIsPack
-     * @param Cart $cart
-     * @param int $idCustomization Product customization id (optional)
+     * By default, it returns the TRUE quantity in stock. If you want to, you can pass a $cart parameter
+     * and the quantity in stock will be reduced by the quantity there is in the cart.
+     *
+     * @param int $idProduct Product id
+     * @param int|null $idProductAttribute Product attribute id (optional)
+     * @param bool|null $cacheIsPack (unused, you can pass null)
+     * @param CartCore|null $cart Pass if you want to reduce the quantity by amount in cart
+     * @param int|null $idCustomization Product customization id (optional)
      *
      * @return int
      *
@@ -246,12 +272,11 @@ class PackCore extends Product
         $idProduct,
         $idProductAttribute = null,
         $cacheIsPack = null,
-        Cart $cart = null,
+        CartCore $cart = null,
         $idCustomization = null
     ) {
         $idProduct = (int) $idProduct;
         $idProductAttribute = (int) $idProductAttribute;
-        $cacheIsPack = (bool) $cacheIsPack;
 
         if (!self::isPack($idProduct)) {
             throw new PrestaShopException("Product with id $idProduct is not a pack");
@@ -260,10 +285,8 @@ class PackCore extends Product
         // Initialize
         $product = new Product($idProduct, false);
         $packQuantity = 0;
-        $packQuantityInStock = StockAvailable::getQuantityAvailableByProduct(
-            $idProduct,
-            $idProductAttribute
-        );
+
+        // We get the pack stock calculation type it has set up
         $packStockType = $product->pack_stock_type;
         $allPackStockType = [
             self::STOCK_TYPE_PACK_ONLY,
@@ -276,20 +299,30 @@ class PackCore extends Product
             throw new PrestaShopException('Unknown pack stock type');
         }
 
-        // If no pack stock or shop default, set it
-        if (empty($packStockType)
-            || $packStockType == self::STOCK_TYPE_DEFAULT
-        ) {
+        /*
+         * Now, we have resolved how we will calculate the stock of this pack. It can be one of the following.
+         *
+         * STOCK_TYPE_PACK_ONLY	- pack 1pcs + product A 10pcs + product B 20pcs = 1pcs
+         * STOCK_TYPE_PRODUCTS_ONLY - pack 1pcs + product A 10pcs + product B 20pcs = 10 pcs
+         * STOCK_TYPE_PACK_BOTH - pack 1pcs + product A 10pcs + product B 20pcs = 1 pcs
+         */
+
+        // If no pack stock or shop default, set it from configuration
+        if (empty($packStockType) || $packStockType == self::STOCK_TYPE_DEFAULT) {
             $packStockType = Configuration::get('PS_PACK_STOCK_TYPE');
         }
 
-        // Initialize with pack quantity if not only products
+        // If the quantity of the pack depends only on the pack or both packs and products,
+        // we need to load the quantity of the pack from stock_available table.
         if (in_array($packStockType, [self::STOCK_TYPE_PACK_ONLY, self::STOCK_TYPE_PACK_BOTH])) {
-            $packQuantity = $packQuantityInStock;
+            $packQuantity = StockAvailable::getQuantityAvailableByProduct(
+                $idProduct,
+                $idProductAttribute
+            );
         }
 
-        // Set pack quantity to the minimum quantity of pack, or
-        // product pack
+        // If the quantity of the pack depends on the products inside, or both pack and products,
+        // we need to set the pack quantity to the lowest quantity of products inside.
         if (in_array($packStockType, [self::STOCK_TYPE_PACK_BOTH, self::STOCK_TYPE_PRODUCTS_ONLY])) {
             $items = array_values(Pack::getItems($idProduct, Configuration::get('PS_LANG_DEFAULT')));
 
@@ -299,6 +332,7 @@ class PackCore extends Product
 
                 // Initialize packQuantity with the first product quantity
                 // if pack decrement stock type is products only
+                // @todo This is probably not needed because $packQuantity is always initialized to zero.
                 if ($index === 0
                     && $packStockType == self::STOCK_TYPE_PRODUCTS_ONLY
                 ) {
@@ -307,6 +341,7 @@ class PackCore extends Product
                     continue;
                 }
 
+                // If the quantity of the individual item is lower than what we currently calculated, it's our new quantity.
                 if ($nbPackAvailableForItem < $packQuantity) {
                     $packQuantity = $nbPackAvailableForItem;
                 }
@@ -349,6 +384,7 @@ class PackCore extends Product
 
         $result = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS($sql);
 
+        /** @var array{id_product: int, id_product_attribute_item: int|null, name: string} $line */
         foreach ($result as &$line) {
             if (Combination::isFeatureActive() && isset($line['id_product_attribute_item']) && $line['id_product_attribute_item']) {
                 $line['cache_default_attribute'] = $line['id_product_attribute'] = $line['id_product_attribute_item'];
@@ -446,9 +482,14 @@ class PackCore extends Product
         return $array_result;
     }
 
-    public static function deleteItems($id_product)
+    public static function deleteItems($id_product, $refreshCache = true)
     {
-        return Db::getInstance()->update('product', ['cache_is_pack' => 0], 'id_product = ' . (int) $id_product) &&
+        $result = true;
+        if ($refreshCache) {
+            $result = Db::getInstance()->update('product', ['cache_is_pack' => 0], 'id_product = ' . (int) $id_product);
+        }
+
+        return $result &&
             Db::getInstance()->execute('DELETE FROM `' . _DB_PREFIX_ . 'pack` WHERE `id_product_pack` = ' . (int) $id_product) &&
             Configuration::updateGlobalValue('PS_PACK_FEATURE_ACTIVE', Pack::isCurrentlyUsed());
     }
@@ -505,8 +546,8 @@ class PackCore extends Product
      *
      * @since 1.5.0
      *
-     * @param $table
-     * @param $has_active_column
+     * @param string|null $table Name of table linked to entity
+     * @param bool $has_active_column True if the table has an active column
      *
      * @return bool
      */

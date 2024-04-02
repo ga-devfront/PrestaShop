@@ -125,7 +125,6 @@ function onShowStepCallback()
 		$(this).closest('li').addClass($(this).attr('class'));
 	});
 	$('#carrier_logo_block').prependTo($('div.content').filter(function() { return $(this).css('display') != 'none' }).find('.defaultForm').find('fieldset'));
-	resizeWizard();
 }
 
 function onFinishCallback(obj, context)
@@ -141,7 +140,6 @@ function onFinishCallback(obj, context)
 			if (data.has_error)
 			{
 				displayError(data.errors, context.fromStep);
-				resizeWizard();
 			}
 			else
 				window.location.href = carrierlist_url;
@@ -308,7 +306,6 @@ function validateSteps(fromStep, toStep)
 						$(this).closest('div.input-group').removeClass('has-error');
 					});
 					displayError(datas.errors, fromStep);
-					resizeWizard();
 				}
 			},
 			error: function(XMLHttpRequest, textStatus, errorThrown) {
@@ -335,16 +332,11 @@ function displayError(errors, step_number)
 	bind_inputs();
 }
 
-function resizeWizard()
-{
-	resizeInterval = setInterval(function (){$("#carrier_wizard").smartWizard('fixHeight'); clearInterval(resizeInterval)}, 100);
-}
-
 function bind_inputs()
 {
 	$('input').focus(function () {
 		$(this).closest('div.input-group').removeClass('has-error');
-		$('#carrier_wizard .actionBar a.btn').not('.buttonFinish').removeClass('disabled');
+		$('#carrier_wizard .actionBar a.btn').removeClass('disabled');
 		$('.wizard_error').fadeOut('fast', function () { $(this).remove()});
 	});
 
@@ -369,8 +361,10 @@ function bind_inputs()
 				index = $(this).index();
 				if ($('tr.fees_all td:eq('+index+')').hasClass('validated'))
 				{
-					enableGlobalFees(index);
-					$(this).find('div.input-group input:text').prop('disabled', false);
+          if($('#is_free_off').prop('checked') === true) {
+            enableGlobalFees(index);
+            $(this).find('div.input-group input:text').prop('disabled', false);
+          }
 				}
 				else
 					disabledGlobalFees(index);
@@ -452,7 +446,7 @@ function hideFees()
 	$('tr.range_inf td, tr.range_sup td, tr.fees_all td, tr.fees td').each(function () {
 		if ($(this).index() >= 2)
 		{
-			$(this).find('input:text, button').val('').prop('disabled', true).css('background-color', '#999999').css('border-color', '#999999');
+			$(this).find('input:text, button').prop('disabled', true).css('background-color', '#999999').css('border-color', '#999999');
 			$(this).css('background-color', '#999999');
 		}
 	});
@@ -467,8 +461,10 @@ function showFees()
 			//enable only if zone is active
 			tr = $(this).closest('tr');
 			validate = $('tr.fees_all td:eq('+$(this).index()+')').hasClass('validated');
-			if ($(tr).index() > 2 && $(tr).find('td:eq(1) input').prop('checked') && validate || !$(tr).hasClass('range_sup') || !$(tr).hasClass('range_inf'))
-				$(this).find('div.input-group input:text').prop('disabled', false);
+			if ($(tr).index() > 2 && $(tr).find('td:eq(1) input').prop('checked') && validate || !$(tr).hasClass('range_sup') || !$(tr).hasClass('range_inf')) {
+        if($('#is_free_off').prop('checked') === true)
+          $(this).find('div.input-group input:text').prop('disabled', false);
+      }
 			$(this).find('input:text, button').css('background-color', '').css('border-color', '');
 			$(this).find('button').css('background-color', '').css('border-color', '').prop('disabled', false);
 			$(this).css('background-color', '');
@@ -534,16 +530,18 @@ function validateRange(index)
 
 function enableZone(index)
 {
-	$('tr.fees').each(function () {
-		if ($(this).find('td:eq(1)').find('input[type=checkbox]:checked').length)
-			$(this).find('td:eq('+index+')').find('div.input-group input').prop('disabled', false);
-	});
+  if($('#is_free_off').prop('checked') === true) {
+    $('tr.fees').each(function () {
+      if ($(this).find('td:eq(1)').find('input[type=checkbox]:checked').length)
+        $(this).find('td:eq('+index+')').find('div.input-group input').prop('disabled', false);
+    });
+  }
 }
 
 function disableZone(index)
 {
 	$('tr.fees').each(function () {
-		$(this).find('td:eq('+index+')').find('div.input-group input').prop('disabled', true);
+      $(this).find('td:eq(' + index + ')').find('div.input-group input').prop('disabled', true);
 	});
 }
 
@@ -551,21 +549,22 @@ function enableRange(index)
 {
 	$('tr.fees').each(function () {
 		//only enable fees for enabled zones
-		if ($(this).find('td').find('input:checkbox').prop('checked'))
+		if ($(this).find('td').find('input:checkbox').prop('checked') && $('#is_free_off').prop('checked') === true)
 			enableZone(index);
 	});
 	$('tr.fees_all td:eq('+index+')').addClass('validated').removeClass('not_validated');
 
-	//if ($('.zone input[type=checkbox]:checked').length)
-		enableGlobalFees(index);
+	enableGlobalFees(index);
 	bind_inputs();
 }
 
 function enableGlobalFees(index)
 {
-	$('span.fees_all').show();
-	$('tr.fees_all td:eq('+index+')').find('div.input-group input').show().prop('disabled', false);
-	$('tr.fees_all td:eq('+index+')').find('div.input-group .currency_sign').show();
+  if($('#is_free_off').prop('checked') === true) {
+	  $('span.fees_all').show();
+	  $('tr.fees_all td:eq('+index+')').find('div.input-group input').show().prop('disabled', false);
+	  $('tr.fees_all td:eq('+index+')').find('div.input-group .currency_sign').show();
+  }
 }
 
 function disabledGlobalFees(index)
@@ -610,7 +609,6 @@ function add_new_range()
 	bind_inputs();
 	rebuildTabindex();
 	displayRangeType();
-	resizeWizard();
 	return false;
 }
 
@@ -687,7 +685,6 @@ function checkRangeContinuity(reordering)
 		$('.ranges_not_follow').fadeOut();
 	else
 		$('.ranges_not_follow').fadeIn();
-	resizeWizard();
 }
 
 function getCorrectRangePosistion(current_inf, current_sup)
@@ -746,7 +743,7 @@ function checkAllZones(elt)
 		$('.fees div.input-group input:text').each(function () {
 			index = $(this).closest('td').index();
 			enableGlobalFees(index);
-			if ($('tr.fees_all td:eq('+index+')').hasClass('validated'))
+			if ($('tr.fees_all td:eq('+index+')').hasClass('validated') && $('#is_free_off').prop('checked') === true)
 			{
 				$(this).prop('disabled', false);
 				$('.fees_all td:eq('+index+') div.input-group input:text').prop('disabled', false);

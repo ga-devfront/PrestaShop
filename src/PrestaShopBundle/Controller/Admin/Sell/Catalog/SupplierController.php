@@ -32,11 +32,13 @@ use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\BulkDeleteSupplierCommand
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\BulkDisableSupplierCommand;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\BulkEnableSupplierCommand;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\DeleteSupplierCommand;
+use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\DeleteSupplierLogoImageCommand;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Command\ToggleSupplierStatusCommand;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\CannotDeleteSupplierException;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\CannotToggleSupplierStatusException;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\CannotUpdateSupplierStatusException;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\SupplierConstraintException;
+use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\SupplierException;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Exception\SupplierNotFoundException;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Query\GetSupplierForEditing;
 use PrestaShop\PrestaShop\Core\Domain\Supplier\Query\GetSupplierForViewing;
@@ -56,6 +58,7 @@ use PrestaShopBundle\Security\Annotation\DemoRestricted;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * Class SupplierController is responsible for "Sell > Catalog > Brands & Suppliers > Suppliers" page.
@@ -116,7 +119,7 @@ class SupplierController extends FrameworkBundleAdminController
             $result = $this->getFormHandler()->handle($supplierForm);
 
             if (null !== $result->getIdentifiableObjectId()) {
-                $this->addFlash('success', $this->trans('Successful creation.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful creation', 'Admin.Notifications.Success'));
 
                 return $this->redirectToRoute('admin_suppliers_index');
             }
@@ -152,7 +155,7 @@ class SupplierController extends FrameworkBundleAdminController
 
             $this->addFlash(
                 'success',
-                $this->trans('Successful deletion.', 'Admin.Notifications.Success')
+                $this->trans('Successful deletion', 'Admin.Notifications.Success')
             );
         } catch (Exception $e) {
             $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
@@ -311,7 +314,7 @@ class SupplierController extends FrameworkBundleAdminController
             $result = $this->getFormHandler()->handleFor((int) $supplierId, $supplierForm);
 
             if ($result->isSubmitted() && $result->isValid()) {
-                $this->addFlash('success', $this->trans('Successful update.', 'Admin.Notifications.Success'));
+                $this->addFlash('success', $this->trans('Successful update', 'Admin.Notifications.Success'));
 
                 return $this->redirectToRoute('admin_suppliers_index');
             }
@@ -391,7 +394,7 @@ class SupplierController extends FrameworkBundleAdminController
         return $this->render('@PrestaShop/Admin/Sell/Catalog/Suppliers/view.html.twig', [
             'layoutTitle' => $viewableSupplier->getName(),
             'viewableSupplier' => $viewableSupplier,
-            'isStockManagementEnabled' => $this->configuration->get('PS_STOCK_MANAGEMENT'),
+            'isStockManagementEnabled' => $this->getConfiguration()->get('PS_STOCK_MANAGEMENT'),
             'isAllShopContext' => $this->get('prestashop.adapter.shop.context')->isAllShopContext(),
             'help_link' => $this->generateSidebarLink($request->attributes->get('_legacy_controller')),
             'enableSidebar' => true,
@@ -401,7 +404,7 @@ class SupplierController extends FrameworkBundleAdminController
     /**
      * Exports to csv visible suppliers list data.
      *
-     * @AdminSecurity("is_granted(['read'], request.get('_legacy_controller'))")
+     * @AdminSecurity("is_granted('read', request.get('_legacy_controller'))")
      *
      * @param SupplierFilters $filters
      *
@@ -439,11 +442,51 @@ class SupplierController extends FrameworkBundleAdminController
     }
 
     /**
+     * Deletes supplier logo image.
+     *
+     * @AdminSecurity(
+     *     "is_granted('update', request.get('_legacy_controller'))",
+     *     message="You do not have permission to edit this.",
+     *     redirectRoute="admin_suppliers_edit",
+     *     redirectQueryParamsToKeep={"supplierId"}
+     * )
+     *
+     * @param Request $request
+     * @param int $supplierId
+     *
+     * @return RedirectResponse
+     */
+    public function deleteLogoImageAction(Request $request, int $supplierId): RedirectResponse
+    {
+        if (!$this->isCsrfTokenValid('delete-logo-thumbnail', $request->request->get('_csrf_token'))) {
+            return $this->redirectToRoute('admin_security_compromised', [
+                'uri' => $this->generateUrl('admin_suppliers_edit', [
+                    'supplierId' => $supplierId,
+                ], UrlGeneratorInterface::ABSOLUTE_URL),
+            ]);
+        }
+
+        try {
+            $this->getCommandBus()->handle(new DeleteSupplierLogoImageCommand($supplierId));
+            $this->addFlash(
+                'success',
+                $this->trans('Image successfully deleted.', 'Admin.Notifications.Success')
+            );
+        } catch (SupplierException $e) {
+            $this->addFlash('error', $this->getErrorMessageForException($e, $this->getErrorMessages()));
+        }
+
+        return $this->redirectToRoute('admin_suppliers_edit', [
+            'supplierId' => $supplierId,
+        ]);
+    }
+
+    /**
      * Provides error messages for exceptions
      *
      * @return array
      */
-    private function getErrorMessages()
+    private function getErrorMessages(): array
     {
         $iniConfig = $this->get('prestashop.core.configuration.ini_configuration');
 
@@ -502,7 +545,7 @@ class SupplierController extends FrameworkBundleAdminController
                         $iniConfig->getUploadMaxSizeInBytes(),
                     ]),
                 UploadedImageConstraintException::UNRECOGNIZED_FORMAT => $this->trans(
-                    'Image format not recognized, allowed formats are: .gif, .jpg, .png',
+                    'Image format not recognized, allowed formats are: .gif, .jpg, .png, .webp',
                     'Admin.Notifications.Error'
                 ),
             ],
@@ -512,7 +555,7 @@ class SupplierController extends FrameworkBundleAdminController
     /**
      * @return FormBuilderInterface
      */
-    private function getFormBuilder()
+    private function getFormBuilder(): FormBuilderInterface
     {
         return $this->get('prestashop.core.form.identifiable_object.builder.supplier_form_builder');
     }
@@ -520,17 +563,20 @@ class SupplierController extends FrameworkBundleAdminController
     /**
      * @return FormHandlerInterface
      */
-    private function getFormHandler()
+    private function getFormHandler(): FormHandlerInterface
     {
         return $this->get('prestashop.core.form.identifiable_object.handler.supplier_form_handler');
     }
 
+    /**
+     * @return string
+     */
     protected function getSettingsTipMessage()
     {
         $urlOpening = sprintf('<a href="%s">', $this->get('router')->generate('admin_preferences'));
         $urlEnding = '</a>';
 
-        if ($this->configuration->get('PS_DISPLAY_SUPPLIERS')) {
+        if ($this->getConfiguration()->get('PS_DISPLAY_SUPPLIERS')) {
             return $this->trans(
                 'The display of your suppliers is enabled on your store. Go to %sShop Parameters > General%s to edit settings.',
                 'Admin.Catalog.Notification',

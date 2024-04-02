@@ -26,12 +26,14 @@
 
 namespace PrestaShopBundle\Form\Admin\Configure\AdvancedParameters\Administration;
 
-use PrestaShopBundle\Form\Admin\Type\TextWithUnitType;
+use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
+use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\GreaterThanOrEqual;
 use Symfony\Component\Validator\Constraints\Type;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class UploadQuotaType extends TranslatorAwareType
 {
@@ -40,15 +42,26 @@ class UploadQuotaType extends TranslatorAwareType
     public const FIELD_MAX_SIZE_PRODUCT_IMAGE = 'max_size_product_image';
 
     /**
+     * @var ConfigurationInterface
+     */
+    private $configuration;
+
+    public function __construct(TranslatorInterface $translator, array $locales, ConfigurationInterface $configuration)
+    {
+        parent::__construct($translator, $locales);
+        $this->configuration = $configuration;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        $configuration = $this->getConfiguration();
+        $configuration = $this->configuration;
         $builder
             ->add(
                 self::FIELD_MAX_SIZE_ATTACHED_FILES,
-                TextWithUnitType::class,
+                IntegerType::class,
                 [
                     'label' => $this->trans(
                         'Maximum size for attached files',
@@ -80,7 +93,7 @@ class UploadQuotaType extends TranslatorAwareType
             )
             ->add(
                 self::FIELD_MAX_SIZE_DOWNLOADABLE_FILE,
-                TextWithUnitType::class,
+                IntegerType::class,
                 [
                     'label' => $this->trans(
                         'Maximum size for a downloadable product',
@@ -112,7 +125,7 @@ class UploadQuotaType extends TranslatorAwareType
             )
             ->add(
                 self::FIELD_MAX_SIZE_PRODUCT_IMAGE,
-                TextWithUnitType::class,
+                IntegerType::class,
                 [
                     'label' => $this->trans(
                         'Maximum size for a product\'s image',

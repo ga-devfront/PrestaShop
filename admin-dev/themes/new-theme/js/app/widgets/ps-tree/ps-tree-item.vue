@@ -39,11 +39,11 @@
         <span
           v-if="translations"
           class="sr-only"
-        >{{ this.model.open ? translations.reduce : translations.expand }}</span>
+        >{{ model.open ? translations.reduce : translations.expand }}</span>
       </button>
       <PSCheckbox
         :ref="model.name"
-        :id="id"
+        :id="id.toString()"
         :model="model"
         @checked="onCheck"
         v-if="hasCheckbox"
@@ -59,7 +59,7 @@
       <span
         class="tree-extra-label-mini d-xl-none"
         v-if="displayExtraLabel"
-      >{{ this.model.extraLabel }}</span>
+      >{{ model.extraLabel }}</span>
     </div>
     <ul
       v-show="open"
@@ -88,11 +88,12 @@
   </div>
 </template>
 
-<script>
-  import PSCheckbox from '@app/widgets/ps-checkbox';
-  import {EventBus} from '@app/utils/event-bus';
+<script lang="ts">
+  import PSCheckbox from '@app/widgets/ps-checkbox.vue';
+  import {EventEmitter} from '@components/event-emitter';
+  import {defineComponent} from 'vue';
 
-  export default {
+  export default defineComponent({
     name: 'PSTreeItem',
     props: {
       model: {
@@ -120,16 +121,16 @@
       },
     },
     computed: {
-      id() {
-        return this.model.id;
+      id(): number {
+        return this.model.id.toString();
       },
-      isFolder() {
+      isFolder(): boolean {
         return this.model.children && this.model.children.length;
       },
-      displayExtraLabel() {
+      displayExtraLabel(): boolean {
         return this.isFolder && this.model.extraLabel;
       },
-      getExtraLabel() {
+      getExtraLabel(): string {
         let extraLabel = '';
 
         if (this.model.extraLabel && this.model.extraLabel === 1) {
@@ -140,21 +141,21 @@
 
         return extraLabel;
       },
-      isHidden() {
+      isHidden(): boolean {
         return !this.isFolder;
       },
-      chevronStatus() {
+      chevronStatus(): string {
         return this.open ? 'open' : 'closed';
       },
-      isWarning() {
+      isWarning(): boolean {
         return !this.isFolder && this.model.warning;
       },
-      active() {
+      active(): boolean {
         return this.model.full_name === this.currentItem;
       },
     },
     methods: {
-      setCurrentElement(el) {
+      setCurrentElement(el: any): void {
         if (this.$refs[el]) {
           this.openTreeItemAction();
           this.current = true;
@@ -163,41 +164,44 @@
           this.current = false;
         }
       },
-      parentElement(parent) {
+      parentElement(parent: any): void {
         if (parent.clickElement) {
           parent.clickElement();
           this.parentElement(parent.$parent);
         }
       },
-      clickElement() {
+      clickElement(): boolean | void {
         return !this.model.disable ? this.openTreeItemAction() : false;
       },
-      openTreeItemAction() {
+      openTreeItemAction(): void {
         this.setCurrentElement(this.model.full_name);
         if (this.isFolder) {
           this.open = !this.open;
         } else {
-          EventBus.$emit('lastTreeItemClick', {
+          EventEmitter.emit('lastTreeItemClick', {
             item: this.model,
           });
         }
       },
-      onCheck(obj) {
+      onCheck(obj: any): void {
         this.$emit('checked', obj);
       },
     },
     mounted() {
-      EventBus.$on('toggleCheckbox', (tag) => {
+      EventEmitter.on('toggleCheckbox', (tag: any) => {
         const checkbox = this.$refs[tag];
 
         if (checkbox) {
-          checkbox.$data.checked = !checkbox.$data.checked;
+          (<VCheckbox>checkbox).$data.checked = !(<VCheckbox>checkbox).$data.checked;
         }
-      }).$on('expand', () => {
+      });
+      EventEmitter.on('expand', () => {
         this.open = true;
-      }).$on('reduce', () => {
+      });
+      EventEmitter.on('reduce', () => {
         this.open = false;
-      }).$on('setCurrentElement', (el) => {
+      });
+      EventEmitter.on('setCurrentElement', (el: HTMLElement) => {
         this.setCurrentElement(el);
       });
       this.setCurrentElement(this.currentItem);
@@ -209,5 +213,5 @@
       open: false,
       current: false,
     }),
-  };
+  });
 </script>

@@ -26,19 +26,26 @@
 
 namespace PrestaShopBundle\Controller\Admin;
 
+use PrestaShop\PrestaShop\Adapter\Product\AdminProductWrapper;
+use PrestaShopBundle\Entity\ProductDownload;
 use PrestaShopBundle\Form\Admin\Product\ProductVirtual;
+use PrestaShopBundle\Security\Annotation\AdminSecurity;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 /**
+ * @deprecated since 8.1 and will be removed in next major.
+ *
  * Admin controller for the virtual product on the /product/form page.
  */
 class VirtualProductController extends FrameworkBundleAdminController
 {
     /**
      * Process Ajax Form to create/update virtual product.
+     *
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller')) || is_granted('update', request.get('_legacy_controller'))")
      *
      * @param string|int $idProduct
      * @param Request $request
@@ -49,7 +56,7 @@ class VirtualProductController extends FrameworkBundleAdminController
     {
         $response = new JsonResponse();
         $legacyContext = $this->get('prestashop.adapter.legacy.context');
-        $adminProductWrapper = $this->get('prestashop.adapter.admin.wrapper.product');
+        $adminProductWrapper = $this->get(AdminProductWrapper::class);
         $productAdapter = $this->get('prestashop.adapter.data_provider.product');
         $router = $this->get('router');
 
@@ -93,15 +100,17 @@ class VirtualProductController extends FrameworkBundleAdminController
     /**
      * Download the content of the virtual product.
      *
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller')) || is_granted('update', request.get('_legacy_controller')) || is_granted('read', request.get('_legacy_controller'))")
+     *
      * @param int $idProduct
      *
      * @return BinaryFileResponse
      */
     public function downloadFileAction($idProduct)
     {
-        $configuration = $this->get('prestashop.adapter.legacy.configuration');
+        $configuration = $this->getConfiguration();
         $download = $this->getDoctrine()
-            ->getRepository('PrestaShopBundle:ProductDownload')
+            ->getRepository(ProductDownload::class)
             ->findOneBy([
                 'idProduct' => $idProduct,
             ]);
@@ -121,6 +130,8 @@ class VirtualProductController extends FrameworkBundleAdminController
     /**
      * Process Ajax Form to remove attached file.
      *
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller')) || is_granted('update', request.get('_legacy_controller'))")
+     *
      * @param string|int $idProduct
      * @param Request $request
      *
@@ -129,7 +140,7 @@ class VirtualProductController extends FrameworkBundleAdminController
     public function removeFileAction($idProduct, Request $request)
     {
         $response = new JsonResponse();
-        $adminProductWrapper = $this->get('prestashop.adapter.admin.wrapper.product');
+        $adminProductWrapper = $this->get(AdminProductWrapper::class);
         $productAdapter = $this->get('prestashop.adapter.data_provider.product');
 
         //get product
@@ -147,6 +158,8 @@ class VirtualProductController extends FrameworkBundleAdminController
     /**
      * Process Ajax remove action.
      *
+     * @AdminSecurity("is_granted('create', request.get('_legacy_controller')) || is_granted('update', request.get('_legacy_controller'))")
+     *
      * @param string|int $idProduct
      * @param Request $request
      *
@@ -155,7 +168,7 @@ class VirtualProductController extends FrameworkBundleAdminController
     public function removeAction($idProduct, Request $request)
     {
         $response = new JsonResponse();
-        $adminProductWrapper = $this->get('prestashop.adapter.admin.wrapper.product');
+        $adminProductWrapper = $this->get(AdminProductWrapper::class);
         $productAdapter = $this->get('prestashop.adapter.data_provider.product');
 
         //get product

@@ -35,8 +35,9 @@
       :value="value"
       placeholder="0"
       @keyup="onKeyup($event)"
-      @focus="focusIn"
-      @blur.native="focusOut($event)"
+      @keydown="onKeydown($event)"
+      @focus="focusIn($event)"
+      @blur="focusOut($event)"
     >
     <div
       class="ps-number-spinner d-flex"
@@ -44,18 +45,20 @@
     >
       <span
         class="ps-number-up"
-        @click="increment"
+        @click="increment($event)"
       />
       <span
         class="ps-number-down"
-        @click="decrement"
+        @click="decrement($event)"
       />
     </div>
   </div>
 </template>
 
-<script>
-  export default {
+<script lang="ts">
+  import {defineComponent} from 'vue';
+
+  export default defineComponent({
     props: {
       value: {
         type: [Number, String],
@@ -75,23 +78,31 @@
       },
     },
     methods: {
-      onKeyup($event) {
+      getValue(): number {
+        const value = Number.isNaN(this.value) ? 0 : Number.parseInt(<string> this.value, 10);
+
+        return Number.isNaN(value) ? 0 : value;
+      },
+      onKeyup($event: Event): void {
         this.$emit('keyup', $event);
       },
-      focusIn() {
-        this.$emit('focus');
+      onKeydown($event: Event): void {
+        this.$emit('keydown', $event);
       },
-      focusOut($event) {
+      focusIn($event: Event): void {
+        this.$emit('focus', $event);
+      },
+      focusOut($event: Event): void {
         this.$emit('blur', $event);
       },
-      increment() {
-        const value = parseInt(this.value === '' || isNaN(this.value) ? 0 : this.value, 10);
-        this.$emit('change', Number.isNaN(value) ? 0 : value + 1);
+      increment($event: Event) {
+        (<HTMLInputElement>$event.target).value = `${this.getValue() + 1}`;
+        this.$emit('change', $event);
       },
-      decrement() {
-        const value = parseInt(this.value, 10);
-        this.$emit('change', Number.isNaN(value) ? -1 : value - 1);
+      decrement($event: Event): void {
+        (<HTMLInputElement>$event.target).value = `${this.getValue() - 1}`;
+        this.$emit('change', $event);
       },
     },
-  };
+  });
 </script>

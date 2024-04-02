@@ -51,6 +51,12 @@ abstract class ModuleGridCore extends Module
     /** @var ModuleGridEngine grid engine */
     protected $_render;
 
+    /** @var int */
+    protected $_id_lang;
+
+    /** @var string */
+    protected $_csv;
+
     abstract protected function getData();
 
     public function setEmployee($id_employee)
@@ -66,10 +72,10 @@ abstract class ModuleGridCore extends Module
     public function create($render, $type, $width, $height, $start, $limit, $sort, $dir)
     {
         if (!Validate::isModuleName($render)) {
-            die(Tools::displayError());
+            die(Tools::displayError('Invalid grid module name.'));
         }
         if (!Tools::file_exists_cache($file = _PS_ROOT_DIR_ . '/modules/' . $render . '/' . $render . '.php')) {
-            die(Tools::displayError());
+            die(Tools::displayError('Main grid module file does not exist.'));
         }
         require_once $file;
         $this->_render = new $render($type);
@@ -99,7 +105,7 @@ abstract class ModuleGridCore extends Module
             return Context::getContext()->getTranslator()->trans('No grid engine selected', [], 'Admin.Modules.Notification');
         }
         if (!Validate::isModuleName($render)) {
-            die(Tools::displayError());
+            die(Tools::displayError('Invalid grid module name.'));
         }
         if (!file_exists(_PS_ROOT_DIR_ . '/modules/' . $render . '/' . $render . '.php')) {
             return Context::getContext()->getTranslator()->trans('Grid engine selected is unavailable.', [], 'Admin.Modules.Notification');
@@ -197,5 +203,12 @@ abstract class ModuleGridCore extends Module
     public function getLang()
     {
         return $this->_id_lang;
+    }
+
+    /**
+     * @todo Set this method as abstracted ? Quid of module compatibility.
+     */
+    public function setOption($option, $layers = 1)
+    {
     }
 }

@@ -153,7 +153,7 @@ class AdminTaxRulesGroupControllerCore extends AdminController
 			LEFT JOIN `' . _DB_PREFIX_ . 'state` s
 				ON (a.`id_state` = s.`id_state`)
 			LEFT JOIN `' . _DB_PREFIX_ . 'tax` t
-				ON (a.`id_tax` = t.`id_tax`)';
+				ON (a.`id_tax` = t.`id_tax` AND t.active = 1)';
         $this->_where = 'AND `id_tax_rules_group` = ' . (int) $id_group;
         $this->_use_found_rows = false;
 
@@ -165,6 +165,11 @@ class AdminTaxRulesGroupControllerCore extends AdminController
         return parent::renderList();
     }
 
+    /**
+     * @return string|void
+     *
+     * @throws SmartyException
+     */
     public function renderForm()
     {
         $this->fields_form = [
@@ -209,7 +214,7 @@ class AdminTaxRulesGroupControllerCore extends AdminController
         if (Shop::isFeatureActive()) {
             $this->fields_form['input'][] = [
                 'type' => 'shop',
-                'label' => $this->trans('Shop association', [], 'Admin.Global'),
+                'label' => $this->trans('Store association', [], 'Admin.Global'),
                 'name' => 'checkBoxShopAsso',
             ];
         }
@@ -218,10 +223,8 @@ class AdminTaxRulesGroupControllerCore extends AdminController
             return;
         }
         if (!isset($obj->id)) {
-            $this->no_back = false;
             $content = parent::renderForm();
         } else {
-            $this->no_back = true;
             $this->page_header_toolbar_btn['new'] = [
                 'href' => '#',
                 'desc' => $this->trans('Add a new tax rule', [], 'Admin.International.Feature'),
@@ -332,7 +335,6 @@ class AdminTaxRulesGroupControllerCore extends AdminController
                             'label' => $this->trans('No Tax', [], 'Admin.International.Help'),
                         ],
                     ],
-                    'hint' => $this->trans('(Total tax: 9%)', [], 'Admin.International.Help'),
                 ],
                 [
                     'type' => 'text',
@@ -441,7 +443,7 @@ class AdminTaxRulesGroupControllerCore extends AdminController
                 $tr = new TaxRule();
 
                 // update or creation?
-                if (isset($id_rule) && $first) {
+                if ($first) {
                     $tr->id = $id_rule;
                     $first = false;
                 }
@@ -513,6 +515,19 @@ class AdminTaxRulesGroupControllerCore extends AdminController
         $this->deleteTaxRule([Tools::getValue('id_tax_rule')]);
     }
 
+    protected function displayAjaxUpdateTaxRule()
+    {
+        if ($this->access('view')) {
+            $id_tax_rule = Tools::getValue('id_tax_rule');
+            $tax_rules = new TaxRule((int) $id_tax_rule);
+            $output = [];
+            foreach (get_object_vars($tax_rules) as $key => $result) {
+                $output[$key] = $result;
+            }
+            die(json_encode($output));
+        }
+    }
+
     protected function deleteTaxRule(array $id_tax_rule_list)
     {
         $result = true;
@@ -528,9 +543,10 @@ class AdminTaxRulesGroupControllerCore extends AdminController
                 }
             }
         }
+        $idTaxRulesGroup = isset($tax_rules_group) ? (int) $tax_rules_group->id : 0;
 
         Tools::redirectAdmin(
-            self::$currentIndex . '&' . $this->identifier . '=' . (int) $tax_rules_group->id . '&conf=4&update' . $this->table . '&token=' . $this->token
+            self::$currentIndex . '&' . $this->identifier . '=' . $idTaxRulesGroup . '&conf=4&update' . $this->table . '&token=' . $this->token
         );
     }
 
@@ -545,19 +561,6 @@ class AdminTaxRulesGroupControllerCore extends AdminController
     {
         // @TODO: check if the rule already exists
         return $tr->validateController();
-    }
-
-    protected function displayAjaxUpdateTaxRule()
-    {
-        if ($this->access('view')) {
-            $id_tax_rule = Tools::getValue('id_tax_rule');
-            $tax_rules = new TaxRule((int) $id_tax_rule);
-            $output = [];
-            foreach ($tax_rules as $key => $result) {
-                $output[$key] = $result;
-            }
-            die(json_encode($output));
-        }
     }
 
     /**

@@ -28,14 +28,19 @@ declare(strict_types=1);
 
 namespace PrestaShop\PrestaShop\Core\Form\IdentifiableObject\DataProvider;
 
+use PrestaShop\PrestaShop\Adapter\Shop\Context;
 use PrestaShop\PrestaShop\Core\CommandBus\CommandBusInterface;
 use PrestaShop\PrestaShop\Core\Domain\Product\Combination\Query\GetCombinationForEditing;
 use PrestaShop\PrestaShop\Core\Domain\Product\Combination\Query\GetCombinationSuppliers;
 use PrestaShop\PrestaShop\Core\Domain\Product\Combination\QueryResult\CombinationForEditing;
-use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\Query\GetProductSupplierOptions;
-use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\QueryResult\ProductSupplierInfo;
-use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\QueryResult\ProductSupplierOptions;
+use PrestaShop\PrestaShop\Core\Domain\Product\Stock\Query\GetCombinationStockMovements;
+use PrestaShop\PrestaShop\Core\Domain\Product\Stock\QueryResult\StockMovement;
+use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\Query\GetAssociatedSuppliers;
+use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\QueryResult\AssociatedSuppliers;
+use PrestaShop\PrestaShop\Core\Domain\Product\Supplier\QueryResult\ProductSupplierForEditing;
+use PrestaShop\PrestaShop\Core\Domain\Shop\ValueObject\ShopConstraint;
 use PrestaShop\PrestaShop\Core\Util\DateTime\DateTime;
+use PrestaShopBundle\Form\Admin\Extension\DisablingSwitchExtension;
 
 /**
  * Provides the data that is used to prefill the Combination form
@@ -48,12 +53,20 @@ class CombinationFormDataProvider implements FormDataProviderInterface
     private $queryBus;
 
     /**
+     * @var Context
+     */
+    private $shopContext;
+
+    /**
      * @param CommandBusInterface $queryBus
+     * @param Context $shopContext
      */
     public function __construct(
-        CommandBusInterface $queryBus
+        CommandBusInterface $queryBus,
+        Context $shopContext
     ) {
         $this->queryBus = $queryBus;
+        $this->shopContext = $shopContext;
     }
 
     /**
@@ -62,43 +75,92 @@ class CombinationFormDataProvider implements FormDataProviderInterface
     public function getData($id): array
     {
         $combinationId = (int) $id;
+        $shopConstraint = $this->shopContext->getShopConstraint();
         /** @var CombinationForEditing $combinationForEditing */
-        $combinationForEditing = $this->queryBus->handle(new GetCombinationForEditing($combinationId));
+        $combinationForEditing = $this->queryBus->handle(new GetCombinationForEditing(
+            $combinationId,
+            $shopConstraint
+        ));
 
-        return [
+        $suppliersData = $this->extractSuppliersData($combinationForEditing);
+
+        return array_merge([
             'id' => $combinationId,
             'product_id' => $combinationForEditing->getProductId(),
-            'name' => $combinationForEditing->getName(),
-            'stock' => $this->extractStockData($combinationForEditing),
+            'cover_thumbnail_url' => $combinationForEditing->getCoverThumbnailUrl(),
+            'header' => [
+                'name' => $combinationForEditing->getName(),
+                'is_default' => $combinationForEditing->isDefault(),
+            ],
+            'stock' => $this->extractStockData($combinationForEditing, $shopConstraint),
             'price_impact' => $this->extractPriceImpactData($combinationForEditing),
             'references' => $this->extractReferencesData($combinationForEditing),
-            'suppliers' => $this->extractSuppliersData($combinationForEditing),
-            'images' => $combinationForEditing->getImageIds(),
-        ];
+        ], $suppliersData, ['images' => $combinationForEditing->getImageIds()]);
     }
 
     /**
      * @param CombinationForEditing $combinationForEditing
+     * @param ShopConstraint $shopConstraint
      *
-     * @return array
+     * @return array<string, mixed>
      */
-    private function extractStockData(CombinationForEditing $combinationForEditing): array
+    private function extractStockData(CombinationForEditing $combinationForEditing, ShopConstraint $shopConstraint): array
     {
         $stockInformation = $combinationForEditing->getStock();
         $availableDate = $stockInformation->getAvailableDate();
 
         return [
             'quantities' => [
-                'quantity' => $stockInformation->getQuantity(),
+                'delta_quantity' => [
+                    'quantity' => $stockInformation->getQuantity(),
+                    'delta' => 0,
+                ],
+                'stock_movements' => $this->getStockMovementHistories(
+                    $combinationForEditing->getCombinationId(),
+                    $shopConstraint
+                ),
                 'minimal_quantity' => $stockInformation->getMinimalQuantity(),
             ],
             'options' => [
                 'stock_location' => $stockInformation->getLocation(),
-                'low_stock_threshold' => $stockInformation->getLowStockThreshold() ?: null,
-                'low_stock_alert' => $stockInformation->isLowStockAlertEnabled(),
+                'low_stock_threshold' => $stockInformation->getLowStockThreshold(),
+                sprintf('%slow_stock_threshold', DisablingSwitchExtension::FIELD_PREFIX) => $stockInformation->isLowStockAlertEnabled(),
             ],
-            'available_date' => $availableDate ? $availableDate->format(DateTime::DEFAULT_DATE_FORMAT) : '',
+            'available_date' => DateTime::isNull($availableDate) ? '' : $availableDate->format(DateTime::DEFAULT_DATE_FORMAT),
+            'available_now_label' => $stockInformation->getLocalizedAvailableNowLabels(),
+            'available_later_label' => $stockInformation->getLocalizedAvailableLaterLabels(),
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getStockMovementHistories(int $combinationId, ShopConstraint $shopConstraint): array
+    {
+        return array_map(
+            function (StockMovement $stockMovement): array {
+                $date = null;
+                if ($stockMovement->isEdition()) {
+                    $date = $stockMovement
+                        ->getDate('add')
+                        ->format(DateTime::DEFAULT_DATETIME_FORMAT)
+                    ;
+                }
+
+                return [
+                    'type' => $stockMovement->getType(),
+                    'date' => $date,
+                    'employee_name' => $stockMovement->getEmployeeName(),
+                    'delta_quantity' => $stockMovement->getDeltaQuantity(),
+                ];
+            },
+            $this->queryBus->handle(
+                new GetCombinationStockMovements(
+                    $combinationId,
+                    $shopConstraint->getShopId()->getValue()
+                )
+            )
+        );
     }
 
     /**
@@ -111,12 +173,17 @@ class CombinationFormDataProvider implements FormDataProviderInterface
         $priceImpactInformation = $combinationForEditing->getPrices();
 
         return [
-            'wholesale_price' => (float) (string) $priceImpactInformation->getWholesalePrice(),
             'price_tax_excluded' => (float) (string) $priceImpactInformation->getImpactOnPrice(),
             'price_tax_included' => (float) (string) $priceImpactInformation->getImpactOnPriceTaxIncluded(),
-            'ecotax' => (float) (string) $priceImpactInformation->getEcoTax(),
-            'unit_price' => (float) (string) $priceImpactInformation->getImpactOnUnitPrice(),
+            'unit_price_tax_excluded' => (float) (string) $priceImpactInformation->getImpactOnUnitPrice(),
+            'unit_price_tax_included' => (float) (string) $priceImpactInformation->getImpactOnUnitPriceTaxIncluded(),
+            'ecotax_tax_excluded' => (float) (string) $priceImpactInformation->getEcotax(),
+            'ecotax_tax_included' => (float) (string) $priceImpactInformation->getEcotaxTaxIncluded(),
+            'wholesale_price' => (float) (string) $priceImpactInformation->getWholesalePrice(),
             'weight' => (float) (string) $combinationForEditing->getDetails()->getImpactOnWeight(),
+            'product_tax_rate' => (float) (string) $priceImpactInformation->getProductTaxRate(),
+            'product_price_tax_excluded' => (float) (string) $priceImpactInformation->getProductPrice(),
+            'product_ecotax_tax_excluded' => (float) (string) $priceImpactInformation->getProductEcotax(),
         ];
     }
 
@@ -141,33 +208,30 @@ class CombinationFormDataProvider implements FormDataProviderInterface
     /**
      * @param CombinationForEditing $combinationForEditing
      *
-     * @return array<string, int|array<int, int|array<string, string|int>>>
+     * @return array<string, array<int, array<string, int|string|null>>|int>
      */
     private function extractSuppliersData(CombinationForEditing $combinationForEditing): array
     {
-        /** @var ProductSupplierOptions $productSupplierOptions */
-        $productSupplierOptions = $this->queryBus->handle(new GetProductSupplierOptions($combinationForEditing->getProductId()));
-
-        /** @var ProductSupplierInfo[] $combinationSupplierInfos */
-        $combinationSupplierInfos = $this->queryBus->handle(new GetCombinationSuppliers($combinationForEditing->getCombinationId()));
-
-        if (empty($combinationSupplierInfos)) {
-            return [];
-        }
-
-        $defaultSupplierId = $productSupplierOptions->getDefaultSupplierId();
+        /** @var AssociatedSuppliers $associatedSuppliers */
+        $associatedSuppliers = $this->queryBus->handle(new GetAssociatedSuppliers($combinationForEditing->getProductId()));
         $suppliersData = [
-            'default_supplier_id' => $defaultSupplierId,
+            'default_supplier_id' => $associatedSuppliers->getDefaultSupplierId(),
+            'product_suppliers' => [],
         ];
 
-        foreach ($combinationSupplierInfos as $supplierOption) {
-            $supplierForEditing = $supplierOption->getProductSupplierForEditing();
-            $supplierId = $supplierOption->getSupplierId();
+        /** @var ProductSupplierForEditing[] $combinationProductSuppliers */
+        $combinationProductSuppliers = $this->queryBus->handle(new GetCombinationSuppliers($combinationForEditing->getCombinationId()));
 
-            $suppliersData['supplier_ids'][] = $supplierId;
+        if (empty($combinationProductSuppliers)) {
+            return $suppliersData;
+        }
+
+        foreach ($combinationProductSuppliers as $supplierForEditing) {
+            $supplierId = $supplierForEditing->getSupplierId();
+
             $suppliersData['product_suppliers'][$supplierId] = [
                 'supplier_id' => $supplierId,
-                'supplier_name' => $supplierOption->getSupplierName(),
+                'supplier_name' => $supplierForEditing->getSupplierName(),
                 'product_supplier_id' => $supplierForEditing->getProductSupplierId(),
                 'price_tax_excluded' => $supplierForEditing->getPriceTaxExcluded(),
                 'reference' => $supplierForEditing->getReference(),
@@ -184,7 +248,7 @@ class CombinationFormDataProvider implements FormDataProviderInterface
      */
     public function getDefaultData(): array
     {
-        // Not supposed to happen, Combinations are created vie Generator
+        // Not supposed to happen, Combinations are created via Generator
 
         return [];
     }

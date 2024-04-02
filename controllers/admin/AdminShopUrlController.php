@@ -25,17 +25,26 @@
  */
 
 /**
- * @property ShopUrl $object
+ * @property ShopUrl|null $object
  */
 class AdminShopUrlControllerCore extends AdminController
 {
+    /**
+     * @var int
+     */
+    public $id_shop;
+
+    /**
+     * @var bool
+     */
+    public $redirect_shop_url;
+
     public function __construct()
     {
         $this->bootstrap = true;
         $this->table = 'shop_url';
         $this->className = 'ShopUrl';
         $this->lang = false;
-        $this->requiredDatabase = true;
         $this->multishop_context = Shop::CONTEXT_ALL;
         $this->bulk_actions = [];
 
@@ -54,12 +63,12 @@ class AdminShopUrlControllerCore extends AdminController
 
         $this->fields_list = [
             'id_shop_url' => [
-                'title' => $this->trans('Shop URL ID', [], 'Admin.Advparameters.Feature'),
+                'title' => $this->trans('Store URL ID', [], 'Admin.Advparameters.Feature'),
                 'align' => 'center',
                 'class' => 'fixed-width-xs',
             ],
             'shop_name' => [
-                'title' => $this->trans('Shop name', [], 'Admin.Advparameters.Feature'),
+                'title' => $this->trans('Store name', [], 'Admin.Advparameters.Feature'),
                 'filter_key' => 's!name',
             ],
             'url' => [
@@ -97,7 +106,8 @@ class AdminShopUrlControllerCore extends AdminController
 
     public function renderList()
     {
-        $this->addRowActionSkipList('delete', [1]);
+        // We will hide "delete" action for all URLs that are set as main ones for the store
+        $this->addRowActionSkipList('delete', $this->getUnremovableUrls());
 
         $this->addRowAction('edit');
         $this->addRowAction('delete');
@@ -113,6 +123,25 @@ class AdminShopUrlControllerCore extends AdminController
         return parent::renderList();
     }
 
+    /**
+     * Returns a list of URLs that are selected as main ones for some store.
+     *
+     * @return array of URLs that are selected as main
+     */
+    protected function getUnremovableUrls()
+    {
+        return array_column(
+            Db::getInstance()->executeS('SELECT id_shop_url FROM ' . _DB_PREFIX_ . 'shop_url WHERE main = 1'),
+            'id_shop_url'
+        );
+    }
+
+    /**
+     * @return string|void
+     *
+     * @throws PrestaShopException
+     * @throws SmartyException
+     */
     public function renderForm()
     {
         $update_htaccess = Tools::modRewriteActive() && ((file_exists('.htaccess') && is_writable('.htaccess')) || is_writable(dirname('.htaccess')));
@@ -138,7 +167,7 @@ class AdminShopUrlControllerCore extends AdminController
                     'input' => [
                         [
                             'type' => 'select',
-                            'label' => $this->trans('Shop', [], 'Admin.Global'),
+                            'label' => $this->trans('Store', [], 'Admin.Global'),
                             'name' => 'id_shop',
                             'onchange' => 'checkMainUrlInfo(this.value);',
                             'options' => [
@@ -155,7 +184,7 @@ class AdminShopUrlControllerCore extends AdminController
                         ],
                         [
                             'type' => 'switch',
-                            'label' => $this->trans('Is it the main URL for this shop?', [], 'Admin.Advparameters.Feature'),
+                            'label' => $this->trans('Is it the main URL for this store?', [], 'Admin.Advparameters.Feature'),
                             'name' => 'main',
                             'is_bool' => true,
                             'class' => 't',
@@ -208,7 +237,7 @@ class AdminShopUrlControllerCore extends AdminController
             [
                 'form' => [
                     'legend' => [
-                        'title' => $this->trans('Shop URL', [], 'Admin.Advparameters.Feature'),
+                        'title' => $this->trans('Store URL', [], 'Admin.Advparameters.Feature'),
                         'icon' => 'icon-shopping-cart',
                     ],
                     'input' => [
@@ -224,6 +253,28 @@ class AdminShopUrlControllerCore extends AdminController
                             'name' => 'domain_ssl',
                             'size' => 50,
                         ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Physical URL', [], 'Admin.Advparameters.Feature'),
+                            'name' => 'physical_uri',
+                            'desc' => $this->trans('This is the physical folder for your store on the web server. Leave this field empty if your store is installed on the root path. For instance, if your store is available at www.example.com/my-store/, you must input my-store/ in this field.', [], 'Admin.Advparameters.Help'),
+                            'size' => 50,
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Virtual URL', [], 'Admin.Advparameters.Feature'),
+                            'name' => 'virtual_uri',
+                            'desc' => $desc_virtual_uri,
+                            'size' => 50,
+                            'hint' => (!$update_htaccess) ? $this->trans('Warning: URL rewriting (e.g. mod_rewrite for Apache) seems to be disabled. If your Virtual URL doesn\'t work, please check with your hosting provider on how to activate URL rewriting.', [], 'Admin.Advparameters.Help') : null,
+                        ],
+                        [
+                            'type' => 'text',
+                            'label' => $this->trans('Final URL', [], 'Admin.Advparameters.Feature'),
+                            'name' => 'final_url',
+                            'size' => 76,
+                            'readonly' => true,
+                        ],
                     ],
                     'submit' => [
                         'title' => $this->trans('Save', [], 'Admin.Actions'),
@@ -231,42 +282,6 @@ class AdminShopUrlControllerCore extends AdminController
                 ],
             ],
         ];
-
-        if (!defined('_PS_HOST_MODE_')) {
-            $this->fields_form[1]['form']['input'] = array_merge(
-                $this->fields_form[1]['form']['input'],
-                [
-                    [
-                        'type' => 'text',
-                        'label' => $this->trans('Physical URL', [], 'Admin.Advparameters.Feature'),
-                        'name' => 'physical_uri',
-                        'desc' => $this->trans('This is the physical folder for your store on the web server. Leave this field empty if your store is installed on the root path. For instance, if your store is available at www.example.com/my-store/, you must input my-store/ in this field.', [], 'Admin.Advparameters.Help'),
-                        'size' => 50,
-                    ],
-                ]
-            );
-        }
-
-        $this->fields_form[1]['form']['input'] = array_merge(
-            $this->fields_form[1]['form']['input'],
-            [
-                [
-                    'type' => 'text',
-                    'label' => $this->trans('Virtual URL', [], 'Admin.Advparameters.Feature'),
-                    'name' => 'virtual_uri',
-                    'desc' => $desc_virtual_uri,
-                    'size' => 50,
-                    'hint' => (!$update_htaccess) ? $this->trans('Warning: URL rewriting (e.g. mod_rewrite for Apache) seems to be disabled. If your Virtual URL doesn\'t work, please check with your hosting provider on how to activate URL rewriting.', [], 'Admin.Advparameters.Help') : null,
-                ],
-                [
-                    'type' => 'text',
-                    'label' => $this->trans('Final URL', [], 'Admin.Advparameters.Feature'),
-                    'name' => 'final_url',
-                    'size' => 76,
-                    'readonly' => true,
-                ],
-            ]
-        );
 
         if (!($obj = $this->loadObject(true))) {
             return;
@@ -309,7 +324,7 @@ class AdminShopUrlControllerCore extends AdminController
             }
 
             $this->page_header_toolbar_btn['edit'] = [
-                'desc' => $this->trans('Edit this shop', [], 'Admin.Advparameters.Feature'),
+                'desc' => $this->trans('Edit this store', [], 'Admin.Advparameters.Feature'),
                 'href' => $this->context->link->getAdminLink('AdminShop') . '&updateshop&shop_id=' . (int) $this->id_shop,
             ];
 
@@ -368,13 +383,13 @@ class AdminShopUrlControllerCore extends AdminController
         $shops_tree->setNodeFolderTemplate('shop_tree_node_folder.tpl')->setNodeItemTemplate('shop_tree_node_item.tpl')
             ->setHeaderTemplate('shop_tree_header.tpl')->setActions([
                 new TreeToolbarLink(
-                    'Collapse All',
+                    'Collapse all',
                     '#',
                     '$(\'#' . $shops_tree->getId() . '\').tree(\'collapseAll\'); return false;',
                     'icon-collapse-alt'
                 ),
                 new TreeToolbarLink(
-                    'Expand All',
+                    'Expand all',
                     '#',
                     '$(\'#' . $shops_tree->getId() . '\').tree(\'expandAll\'); return false;',
                     'icon-expand-alt'
@@ -518,6 +533,8 @@ class AdminShopUrlControllerCore extends AdminController
 
     /**
      * @param ShopUrl $object
+     *
+     * @return void|bool
      */
     protected function afterUpdate($object)
     {

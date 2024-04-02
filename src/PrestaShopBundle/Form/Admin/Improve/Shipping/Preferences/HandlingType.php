@@ -26,17 +26,18 @@
 
 namespace PrestaShopBundle\Form\Admin\Improve\Shipping\Preferences;
 
-use PrestaShop\PrestaShop\Adapter\Configuration;
 use PrestaShop\PrestaShop\Adapter\Currency\CurrencyDataProvider;
+use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 use PrestaShopBundle\Form\Admin\Type\MoneyWithSuffixType;
-use PrestaShopBundle\Form\Admin\Type\TextWithUnitType;
+use PrestaShopBundle\Form\Admin\Type\MultistoreConfigurationType;
 use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
 use Symfony\Component\Form\Extension\Core\Type\MoneyType;
+use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Translation\TranslatorInterface;
 use Symfony\Component\Validator\Constraints\GreaterThanOrEqual;
 use Symfony\Component\Validator\Constraints\Type;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Class generates "Handling" form
@@ -49,23 +50,28 @@ class HandlingType extends TranslatorAwareType
      */
     private $currencyDataProvider;
 
+    /**
+     * @var ConfigurationInterface
+     */
+    private $configuration;
+
     public function __construct(
         TranslatorInterface $translator,
         array $locales,
+        ConfigurationInterface $configuration,
         CurrencyDataProvider $currencyDataProvider
     ) {
         parent::__construct($translator, $locales);
 
         $this->currencyDataProvider = $currencyDataProvider;
+        $this->configuration = $configuration;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        /** @var Configuration $configuration */
-        $configuration = $this->getConfiguration();
-        $defaultCurrencyId = $configuration->getInt('PS_CURRENCY_DEFAULT');
+        $defaultCurrencyId = (int) $this->configuration->get('PS_CURRENCY_DEFAULT');
         $defaultCurrency = $this->currencyDataProvider->getCurrencyById($defaultCurrencyId);
-        $weightUnit = $configuration->get('PS_WEIGHT_UNIT');
+        $weightUnit = $this->configuration->get('PS_WEIGHT_UNIT');
 
         $builder
             ->add('shipping_handling_charges', MoneyWithSuffixType::class, [
@@ -81,6 +87,7 @@ class HandlingType extends TranslatorAwareType
                     'Handling charges',
                     'Admin.Shipping.Feature'
                 ),
+                'multistore_configuration_key' => 'PS_SHIPPING_HANDLING',
             ])
             ->add('free_shipping_price', MoneyType::class, [
                 'currency' => $defaultCurrency->iso_code,
@@ -94,8 +101,9 @@ class HandlingType extends TranslatorAwareType
                     'Free shipping starts at',
                     'Admin.Shipping.Feature'
                 ),
+                'multistore_configuration_key' => 'PS_SHIPPING_FREE_PRICE',
             ])
-            ->add('free_shipping_weight', TextWithUnitType::class, [
+            ->add('free_shipping_weight', NumberType::class, [
                 'unit' => $weightUnit,
                 'required' => false,
                 'empty_data' => '0',
@@ -107,6 +115,7 @@ class HandlingType extends TranslatorAwareType
                     new GreaterThanOrEqual(['value' => 0]),
                     new Type(['type' => 'numeric']),
                 ],
+                'multistore_configuration_key' => 'PS_SHIPPING_FREE_WEIGHT',
             ]);
     }
 
@@ -126,5 +135,15 @@ class HandlingType extends TranslatorAwareType
     public function getBlockPrefix()
     {
         return 'shipping_preferences_handling_block';
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @see MultistoreConfigurationTypeExtension
+     */
+    public function getParent(): string
+    {
+        return MultistoreConfigurationType::class;
     }
 }

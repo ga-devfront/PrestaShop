@@ -30,7 +30,7 @@ use PrestaShopBundle\Form\Admin\Type\TranslatorAwareType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Translation\TranslatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Class ShopUrlType is responsible for providing form fields for
@@ -38,11 +38,6 @@ use Symfony\Component\Translation\TranslatorInterface;
  */
 class ShopUrlType extends TranslatorAwareType
 {
-    /**
-     * @var bool
-     */
-    private $isHostMode;
-
     /**
      * @var bool
      */
@@ -58,19 +53,16 @@ class ShopUrlType extends TranslatorAwareType
      *
      * @param TranslatorInterface $translator
      * @param array $locales
-     * @param bool $isHostMode
      * @param bool $isShopFeatureActive
      * @param bool $doesMainShopUrlExist
      */
     public function __construct(
         TranslatorInterface $translator,
         array $locales,
-        bool $isHostMode,
         bool $isShopFeatureActive,
         bool $doesMainShopUrlExist
     ) {
         parent::__construct($translator, $locales);
-        $this->isHostMode = $isHostMode;
         $this->isShopFeatureActive = $isShopFeatureActive;
         $this->doesMainShopUrlExist = $doesMainShopUrlExist;
     }
@@ -80,7 +72,7 @@ class ShopUrlType extends TranslatorAwareType
      */
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
-        if (!$this->isHostMode && !$this->isShopFeatureActive && $this->doesMainShopUrlExist) {
+        if (!$this->isShopFeatureActive && $this->doesMainShopUrlExist) {
             $builder
                 ->add('domain', TextType::class, [
                     'label' => $this->trans(

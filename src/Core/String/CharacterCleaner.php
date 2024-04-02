@@ -26,10 +26,14 @@
 
 namespace PrestaShop\PrestaShop\Core\String;
 
+@trigger_error('The CharacterCleaner is deprecated since version 8.0.0. Its use is not required.', E_USER_DEPRECATED);
+
 class CharacterCleaner
 {
     /**
      * Delete unicode class from regular expression patterns.
+     *
+     * @deprecated Since 8.0.0 and will be removed in the next major.
      *
      * @param string $pattern
      *
@@ -37,10 +41,14 @@ class CharacterCleaner
      */
     public function cleanNonUnicodeSupport($pattern)
     {
-        if (!defined('PREG_BAD_UTF8_OFFSET')) {
-            return $pattern;
-        }
+        @trigger_error(
+            sprintf(
+                '%s is deprecated since version 8.0.0. Its use is not required.',
+                __METHOD__
+            ),
+            E_USER_DEPRECATED
+        );
 
-        return preg_replace('/\\\[px]\{[a-z]{1,2}\}|(\/[a-z]*)u([a-z]*)$/i', '$1$2', $pattern);
+        return $pattern;
     }
 }
