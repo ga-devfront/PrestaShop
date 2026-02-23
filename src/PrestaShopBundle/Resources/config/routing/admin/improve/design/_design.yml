@@ -17,3 +17,7 @@ _mail_theme:
 _image_settings:
   resource: "image_settings.yml"
   prefix: /image-settings
+
+_composer_poc:
+  resource: "composer_poc.yml"
+  prefix: /composer-poc
