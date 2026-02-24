@@ -1,0 +1,102 @@
+{% extends '@PrestaShop/Admin/layout.html.twig' %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-10">
+    <div class="card">
+      <h3 class="card-header">
+        <i class="material-icons">terminal</i> {{ 'Composer Web POC'|trans({}, 'Admin.Navigation.Menu') }}
+      </h3>
+      <div class="card-body">
+        <p>{{ 'Execute Composer commands directly from the PrestaShop Back-Office.'|trans({}, 'Admin.Catalog.Help') }}</p>
+        
+        <button id="launch-composer-btn" class="btn btn-primary mb-3">
+          <i class="material-icons">play_arrow</i> {{ 'Launch Composer'|trans({}, 'Admin.Actions') }}
+        </button>
+
+        <div class="card mt-3">
+          <div class="card-header">
+            {{ 'Console Output'|trans({}, 'Admin.Global') }}
+          </div>
+          <div class="card-body bg-dark text-white p-0">
+            <pre id="console-output" class="p-3 m-0 text-white" style="height: 400px; overflow-y: scroll; font-family: monospace; white-space: pre-wrap; font-size: 13px;"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const launchBtn = document.getElementById('launch-composer-btn');
+      const consoleOutput = document.getElementById('console-output');
+      let pollingInterval = null;
+
+      function startPollingLogs() {
+        if (pollingInterval) clearInterval(pollingInterval);
+        
+        pollingInterval = setInterval(() => {
+          fetch('{{ path("admin_composer_poc_logs") }}')
+            .then(response => response.json())
+            .then(data => {
+              if (data.logs) {
+                consoleOutput.innerHTML = data.logs;
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+              }
+            })
+            .catch(error => console.error('Error fetching logs:', error));
+        }, 1000);
+      }
+
+      function stopPollingLogs() {
+        if (pollingInterval) clearInterval(pollingInterval);
+      }
+
+      launchBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        launchBtn.disabled = true;
+        launchBtn.innerHTML = '<i class="material-icons">loop</i> Running...';
+        consoleOutput.innerHTML = 'Starting Composer process...\n';
+
+        startPollingLogs();
+
+        fetch('{{ path("admin_composer_poc_run") }}', {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (!data.success) {
+            stopPollingLogs();
+            consoleOutput.innerHTML += '\n[ERROR] ' + (data.message || 'Unknown error');
+            launchBtn.disabled = false;
+            launchBtn.innerHTML = '<i class="material-icons">play_arrow</i> Launch Composer';
+          } else {
+            // Process started successfully in background
+            // Stop polling after some time or you could leave it if logs tell when it's done
+            setTimeout(() => {
+              stopPollingLogs();
+              launchBtn.disabled = false;
+              launchBtn.innerHTML = '<i class="material-icons">play_arrow</i> Launch Composer';
+              consoleOutput.innerHTML += '\n\n[PROCESS FINISHED]';
+              consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            }, 10000); // For demo, stop after 10s. In real app, we need to know if process ended.
+          }
+        })
+        .catch(error => {
+          stopPollingLogs();
+          consoleOutput.innerHTML += '\n[FETCH ERROR] ' + error.message;
+          launchBtn.disabled = false;
+          launchBtn.innerHTML = '<i class="material-icons">play_arrow</i> Launch Composer';
+        });
+      });
+    });
+  </script>
+{% endblock %}

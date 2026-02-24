@@ -30,6 +30,7 @@
         "beberlei/doctrineextensions": "^1.0",
         "bjeavons/zxcvbn-php": "^1.4",
         "composer/ca-bundle": "^1.0",
+        "composer/composer": "^2.9",
         "composer/installers": "^2.2.0",
         "curl/curl": "^2.3.2",
         "defuse/php-encryption": "^2.3.1",

@@ -1,0 +1,20 @@
+admin_composer_poc_index:
+  path: /
+  methods: [GET]
+  defaults:
+    _controller: 'PrestaShopBundle\Controller\Admin\Improve\Design\ComposerPocController::indexAction'
+    _legacy_controller: AdminThemes
+
+admin_composer_poc_run:
+  path: /run
+  methods: [POST]
+  defaults:
+    _controller: 'PrestaShopBundle\Controller\Admin\Improve\Design\ComposerPocController::runAction'
+    _legacy_controller: AdminThemes
+
+admin_composer_poc_logs:
+  path: /logs
+  methods: [GET]
+  defaults:
+    _controller: 'PrestaShopBundle\Controller\Admin\Improve\Design\ComposerPocController::logsAction'
+    _legacy_controller: AdminThemes
